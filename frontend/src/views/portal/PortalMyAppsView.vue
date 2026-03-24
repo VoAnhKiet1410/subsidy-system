@@ -81,8 +81,25 @@ const apps = ref([])
 onMounted(async () => {
   loading.value = true
   try {
-    const res = await applicationsApi.getMyApplications()
-    apps.value = res.data.content || res.data || []
+    const [resApps, resProgs] = await Promise.all([
+      applicationsApi.getMyApplications(),
+      http.get('/programs', { params: { size: 500 } }).catch(() => ({ data: [] }))
+    ])
+    
+    const list = resApps.data?.content || resApps.data || []
+    const progsList = resProgs.data?.content || resProgs.data || []
+    const progMap = Object.fromEntries(progsList.map(p => [p.id, p.tenChuongTrinh || p.name || '—']))
+
+    apps.value = list.map(a => ({
+      ...a,
+      id: a.id,
+      ten_chuong_trinh: progMap[a.chuongTrinhId] || '—',
+      trang_thai: a.trangThai || 'PENDING',
+      ngay_nop: a.ngayNopHoSo || a.createdAt,
+      step: a.trangThai === 'PENDING' ? 1 
+          : a.trangThai === 'UNDER_REVIEW' ? 2 
+          : ['APPROVED', 'REJECTED', 'PAID'].includes(a.trangThai) ? 4 : 1
+    }))
   } catch {
     apps.value = fallbackApps
   } finally {

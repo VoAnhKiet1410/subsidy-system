@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="p-8 space-y-8">
     <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
       <div>
@@ -193,7 +193,16 @@ const userStats = computed(() => [
 onMounted(async () => {
   try {
     const res = await http.get('/users')
-    users.value = res.data?.content || res.data || []
+    let list = res.data?.content || res.data || []
+    users.value = list.map(u => ({
+      id: u.id,
+      ho_va_ten: u.fullName || '',
+      ten_dang_nhap: u.username || '',
+      email: u.email || '',
+      so_dien_thoai: u.phone || '',
+      vai_tro: (u.roles && u.roles.length > 0) ? u.roles[0] : 'CITIZEN',
+      created_at: u.createdAt || ''
+    }))
   } catch {
     users.value = [
       { id:1, ten_dang_nhap:'admin', ho_va_ten:'Trần Quản Trị', email:'admin@system.vn', so_dien_thoai:'0901234567', vai_tro:'ADMIN', created_at: new Date(Date.now()-86400000*30).toISOString() },
@@ -213,14 +222,23 @@ async function saveUser() {
   if (!mf.value.ten_dang_nhap || !mf.value.ho_va_ten) { modalError.value='Vui lòng nhập đủ thông tin bắt buộc.'; return }
   modalSaving.value=true; modalError.value=''
   try {
+    const payload = {
+      fullName: mf.value.ho_va_ten,
+      username: mf.value.ten_dang_nhap,
+      email: mf.value.email,
+      phone: mf.value.so_dien_thoai,
+      roles: [mf.value.vai_tro]
+    }
+    if (mf.value.mat_khau) payload.password = mf.value.mat_khau;
+
     if (editUser.value) {
-      await http.put(`/users/${editUser.value.id}`, mf.value)
+      await http.put(`/users/${editUser.value.id}`, payload)
       const i = users.value.findIndex(u=>u.id===editUser.value.id)
       if (i!==-1) users.value[i]={...users.value[i],...mf.value}
       ui.showSuccess('Đã cập nhật!')
     } else {
-      const res = await http.post('/users', mf.value)
-      users.value.unshift(res.data || {...mf.value, id:Date.now(), created_at:new Date().toISOString()})
+      const res = await http.post('/users', payload)
+      users.value.unshift({...mf.value, id: res.data?.id || Date.now(), created_at:new Date().toISOString()})
       ui.showSuccess('Đã tạo tài khoản!')
     }
     showModal.value=false

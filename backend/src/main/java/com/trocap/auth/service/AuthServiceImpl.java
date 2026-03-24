@@ -142,6 +142,7 @@ public class AuthServiceImpl implements AuthService {
         if (request.getPhone() != null) user.setPhone(request.getPhone());
         if (request.getAddress() != null) user.setAddress(request.getAddress());
         if (request.getCccd() != null) user.setCccd(request.getCccd());
+        if (request.getNgaySinh() != null) user.setNgaySinh(request.getNgaySinh());
 
         return nguoiDungRepository.save(user);
     }

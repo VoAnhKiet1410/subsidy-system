@@ -150,8 +150,17 @@ const filteredItems = computed(() => {
 
 onMounted(async () => {
   try {
-    const res = await http.get('/doi-tuong')
-    items.value = (res.data?.content || res.data || []).map((it, idx) => ({ ...it, color: colorPalette[idx % colorPalette.length], icon: iconList[idx % iconList.length] }))
+    const res = await http.get('/beneficiary-groups')
+    items.value = (res.data?.content || res.data || []).map((it, idx) => ({ 
+      ...it, 
+      ten_doi_tuong: it.tenDoiTuong || it.ten_doi_tuong,
+      mo_ta: it.moTa || it.mo_ta,
+      trang_thai: it.trangThai || 'ACTIVE',
+      ho_so_count: it.hoSoCount || 0,
+      created_at: it.createdAt || it.created_at,
+      color: colorPalette[idx % colorPalette.length], 
+      icon: iconList[idx % iconList.length] 
+    }))
   } catch {
     items.value = [
       { id:1, ten_doi_tuong:'Người cao tuổi', mo_ta:'Người từ 60 tuổi trở lên không có người chăm sóc', trang_thai:'ACTIVE', ho_so_count:145, created_at: new Date(Date.now()-86400000*60).toISOString(), color: colorPalette[0], icon: iconList[0] },
@@ -169,7 +178,7 @@ function openEdit(item) { editItem.value=item; mf.value={...item}; modalError.va
 
 async function toggleStatus(item) {
   const newStatus = item.trang_thai === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
-  try { await http.put(`/doi-tuong/${item.id}`, { ...item, trang_thai: newStatus }) } catch {}
+  try { await http.put(`/beneficiary-groups/${item.id}`, { tenDoiTuong: item.ten_doi_tuong, moTa: item.mo_ta }) } catch {}
   item.trang_thai = newStatus
   ui.showSuccess(newStatus === 'ACTIVE' ? 'Đã kích hoạt!' : 'Đã tạm ngưng!')
 }
@@ -185,15 +194,19 @@ async function saveItem() {
   if (!mf.value.ten_doi_tuong.trim()) { modalError.value='Vui lòng nhập tên đối tượng.'; return }
   saving.value=true; modalError.value=''
   try {
+    const payload = {
+      tenDoiTuong: mf.value.ten_doi_tuong,
+      moTa: mf.value.mo_ta
+    }
     const idx = colorPalette[items.value.length % colorPalette.length]
     if (editItem.value) {
-      await http.put(`/doi-tuong/${editItem.value.id}`, mf.value)
+      await http.put(`/beneficiary-groups/${editItem.value.id}`, payload)
       const i = items.value.findIndex(x=>x.id===editItem.value.id)
       if (i!==-1) items.value[i]={...items.value[i],...mf.value}
       ui.showSuccess('Đã cập nhật!')
     } else {
-      const res = await http.post('/doi-tuong', mf.value)
-      items.value.push({ ...mf.value, ...res.data, id:Date.now(), ho_so_count:0, created_at:new Date().toISOString(), color: colorPalette[items.value.length % colorPalette.length], icon: iconList[items.value.length % iconList.length] })
+      const res = await http.post('/beneficiary-groups', payload)
+      items.value.push({ ...mf.value, id: res.data?.id || Date.now(), ho_so_count:0, created_at:new Date().toISOString(), color: colorPalette[items.value.length % colorPalette.length], icon: iconList[items.value.length % iconList.length] })
       ui.showSuccess('Đã tạo đối tượng mới!')
     }
     showModal.value=false

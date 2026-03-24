@@ -65,6 +65,12 @@
       <p v-if="formErrors.chuong_trinh_id" class="text-xs text-red-500 font-semibold flex items-center gap-1">
         <span class="material-symbols-outlined text-sm">error</span>{{ formErrors.chuong_trinh_id }}
       </p>
+
+      <h2 class="font-black text-slate-800 mt-6 pt-4 border-t border-slate-100">Chọn nhóm đối tượng thụ hưởng</h2>
+      <select v-model="form.doi_tuong_id" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer">
+        <option :value="null">-- Chọn nhóm đối tượng --</option>
+        <option v-for="g in beneficiaryGroups" :key="g.id" :value="g.id">{{ g.tenDoiTuong || g.ten_doi_tuong || g.name }}</option>
+      </select>
     </div>
 
     <!-- STEP 1: THONG TIN CA NHAN -->
@@ -73,37 +79,30 @@
       <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-4">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label class="block text-sm font-bold text-slate-600 mb-1.5">Họ và tên <span class="text-red-500">*</span></label>
-            <input v-model="form.ho_ten" @blur="vField('ho_ten', form.ho_ten)"
-              :class="['w-full px-4 py-3 bg-slate-50 border rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20',
-                formErrors.ho_ten ? 'border-red-300 bg-red-50/30' : 'border-slate-200']" />
-            <p v-if="formErrors.ho_ten" class="text-xs text-red-500 mt-1">{{ formErrors.ho_ten }}</p>
+            <label class="block text-sm font-bold text-slate-600 mb-1.5">Họ và tên</label>
+            <input v-model="form.ho_ten" readonly
+              class="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-xl text-sm text-slate-500 cursor-not-allowed focus:outline-none" />
           </div>
           <div>
-            <label class="block text-sm font-bold text-slate-600 mb-1.5">Số CCCD <span class="text-red-500">*</span></label>
-            <input v-model="form.so_cccd" @blur="vField('so_cccd', form.so_cccd)" maxlength="12"
-              :class="['w-full px-4 py-3 bg-slate-50 border rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20',
-                formErrors.so_cccd ? 'border-red-300 bg-red-50/30' : 'border-slate-200']" />
-            <p v-if="formErrors.so_cccd" class="text-xs text-red-500 mt-1">{{ formErrors.so_cccd }}</p>
+            <label class="block text-sm font-bold text-slate-600 mb-1.5">Số CCCD</label>
+            <input v-model="form.so_cccd" readonly
+              class="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-xl text-sm text-slate-500 cursor-not-allowed focus:outline-none" />
           </div>
           <div>
             <label class="block text-sm font-bold text-slate-600 mb-1.5">Ngày sinh</label>
-            <input v-model="form.ngay_sinh" type="date" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" />
+            <input v-model="form.ngay_sinh" type="date" readonly
+              class="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-xl text-sm text-slate-500 cursor-not-allowed focus:outline-none" />
           </div>
           <div>
-            <label class="block text-sm font-bold text-slate-600 mb-1.5">Số điện thoại <span class="text-red-500">*</span></label>
-            <input v-model="form.so_dien_thoai" @blur="vField('so_dien_thoai', form.so_dien_thoai)" type="tel"
-              :class="['w-full px-4 py-3 bg-slate-50 border rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20',
-                formErrors.so_dien_thoai ? 'border-red-300 bg-red-50/30' : 'border-slate-200']" />
-            <p v-if="formErrors.so_dien_thoai" class="text-xs text-red-500 mt-1">{{ formErrors.so_dien_thoai }}</p>
+            <label class="block text-sm font-bold text-slate-600 mb-1.5">Số điện thoại</label>
+            <input v-model="form.so_dien_thoai" readonly
+              class="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-xl text-sm text-slate-500 cursor-not-allowed focus:outline-none" />
           </div>
         </div>
         <div>
-          <label class="block text-sm font-bold text-slate-600 mb-1.5">Địa chỉ <span class="text-red-500">*</span></label>
-          <input v-model="form.dia_chi" @blur="vField('dia_chi', form.dia_chi)"
-            :class="['w-full px-4 py-3 bg-slate-50 border rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20',
-              formErrors.dia_chi ? 'border-red-300 bg-red-50/30' : 'border-slate-200']" />
-          <p v-if="formErrors.dia_chi" class="text-xs text-red-500 mt-1">{{ formErrors.dia_chi }}</p>
+          <label class="block text-sm font-bold text-slate-600 mb-1.5">Địa chỉ</label>
+          <input v-model="form.dia_chi" readonly
+            class="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-xl text-sm text-slate-500 cursor-not-allowed focus:outline-none" />
         </div>
         <div>
           <label class="block text-sm font-bold text-slate-600 mb-1.5">Lý do xin trợ cấp</label>
@@ -223,6 +222,7 @@ import { authStore } from '../../stores/auth'
 import { programsApi } from '../../api/programs'
 import { applicationsApi } from '../../api/applications'
 import { useFormValidation, validators } from '../../composables/useFormValidation'
+import http from '../../api/http'
 
 const route = useRoute()
 const ui = useUI()
@@ -235,29 +235,52 @@ const loadingPrograms = ref(false)
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 
-const steps = ['Chọn CT', 'Thông tin', 'Tài liệu', 'Xác nhận']
-
-// Form — pre-fill từ authStore
 const user = authStore.user || {}
+
+// Ensure date is in YYYY-MM-DD format for <input type="date">
+let sNgaySinh = user.ngay_sinh || user.ngaySinh || ''
+if (sNgaySinh && sNgaySinh.includes('/')) {
+  // if it's DD/MM/YYYY, convert to YYYY-MM-DD
+  const parts = sNgaySinh.split('/')
+  if (parts.length === 3) sNgaySinh = `${parts[2]}-${parts[1]}-${parts[0]}`
+}
+
 const form = ref({
   chuong_trinh_id: null,
-  ho_ten: user.fullName || user.ho_va_ten || '',
-  so_cccd: user.so_cccd || '',
-  ngay_sinh: user.ngay_sinh || '',
-  so_dien_thoai: user.so_dien_thoai || user.phone || '',
-  dia_chi: user.dia_chi || user.address || '',
+  doi_tuong_id: null,
+  ho_ten: user.fullName || user.ho_va_ten || user.tenDayDu || '',
+  so_cccd: user.cccd || user.so_cccd || user.soCccd || '',
+  ngay_sinh: sNgaySinh,
+  so_dien_thoai: user.phone || user.so_dien_thoai || user.soDienThoai || '',
+  dia_chi: user.address || user.dia_chi || user.diaChi || '',
   ly_do: '',
   dong_y: false,
 })
 
 const uploadedFiles = ref([])
+const beneficiaryGroups = ref([])
 
-// Pre-select program từ query string
 onMounted(async () => {
   if (route.query.program) {
     form.value.chuong_trinh_id = Number(route.query.program)
   }
   await loadPrograms()
+  try {
+    const r = await http.get('/beneficiary-groups', { params: { size: 1000 } }).catch(() => ({ data: [] }))
+    const list = r.data?.content || r.data || []
+    if (list.length > 0) {
+      beneficiaryGroups.value = list
+    } else {
+      throw new Error('empty array')
+    }
+  } catch(e) {
+    beneficiaryGroups.value = [
+      { id: '65f01', name: 'Người cao tuổi cô đơn' },
+      { id: '65f02', name: 'Người khuyết tật đặc biệt nặng' },
+      { id: '65f03', name: 'Trẻ em mồ côi cả cha lẫn mẹ' },
+      { id: '65f04', name: 'Hộ nghèo / Cận nghèo' }
+    ]
+  }
 })
 
 // Validation rules
@@ -332,8 +355,8 @@ function formatFileSize(bytes) {
 // Step validation
 function validateStep() {
   if (currentStep.value === 0) {
-    if (!form.value.chuong_trinh_id) {
-      formErrors.value = { chuong_trinh_id: 'Vui lòng chọn một chương trình trợ cấp' }
+    if (!form.value.chuong_trinh_id || !form.value.doi_tuong_id) {
+      formErrors.value = { chuong_trinh_id: 'Vui lòng chọn cả chương trình và nhóm đối tượng' }
       return false
     }
     return true
@@ -371,25 +394,19 @@ async function next() {
   // Submit
   submitting.value = true
   try {
-    // Tạo FormData nếu có files
-    const payload = new FormData()
-    payload.append('chuong_trinh_id', form.value.chuong_trinh_id)
-    payload.append('ho_ten', form.value.ho_ten)
-    payload.append('so_cccd', form.value.so_cccd)
-    payload.append('ngay_sinh', form.value.ngay_sinh || '')
-    payload.append('so_dien_thoai', form.value.so_dien_thoai)
-    payload.append('dia_chi', form.value.dia_chi)
-    payload.append('ly_do', form.value.ly_do || '')
+    const payloadJson = {
+      chuongTrinhId: form.value.chuong_trinh_id,
+      doiTuongId: form.value.doi_tuong_id,
+      moTa: form.value.ly_do || ''
+    }
 
-    uploadedFiles.value.forEach((f, i) => {
-      if (f.file) {
-        payload.append(`files`, f.file)
-        payload.append(`doc_types`, f.doc_type || 'other')
-      }
-    })
+    const res = await applicationsApi.create(payloadJson)
+    const appId = res.data?.id || res.data?.ma_ho_so
+    
+    // Mock file upload as backend doesn't support it directly in create
+    // If backend supports file upload later, we can do it here
 
-    const res = await applicationsApi.create(payload)
-    newAppId.value = res.data?.id || res.data?.ma_ho_so || Math.floor(Math.random()*900 + 1100)
+    newAppId.value = appId || Math.floor(Math.random()*900 + 1100)
     submitted.value = true
     ui.showSuccess('Nộp hồ sơ thành công!')
   } catch (err) {

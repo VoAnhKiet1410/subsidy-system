@@ -34,6 +34,7 @@ public class NguoiDung {
     private String phone;
     private String address;
     private String cccd;
+    private String ngaySinh;
 
     private List<String> roles;
 

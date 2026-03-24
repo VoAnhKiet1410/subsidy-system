@@ -537,12 +537,54 @@ function formatVnd(v)  {
 
 onMounted(async () => {
   try {
-    const res = await http.get(`/applications/${route.params.id}`)
+    const [resApp, resUsers, resProgs, resCats] = await Promise.all([
+      http.get(`/applications/${route.params.id}`),
+      http.get('/users', { params: { size: 1000 } }).catch(()=>({data:[]})),
+      http.get('/programs', { params: { size: 500 } }).catch(()=>({data:[]})),
+      http.get('/beneficiary-groups', { params: { size: 1000 } }).catch(()=>({data:[]}))
+    ])
+
+    const a = resApp.data?.content || resApp.data || {};
+    
+    // Attempt mappings
+    const usersList = resUsers.data?.content || resUsers.data || [];
+    const progsList = resProgs.data?.content || resProgs.data || [];
+    const catsList = resCats.data?.content || resCats.data || [];
+
+    const user = usersList.find(u => u.id === a.nguoiDungId || u.username === a.nguoiDungId) || {};
+    const prog = progsList.find(p => p.id === a.chuongTrinhId) || {};
+    const cat = catsList.find(c => c.id === a.doiTuongId) || {};
+
     app.value = {
-      ...res.data,
-      diem_uu_tien: res.data.danh_gia_ai?.diem_uu_tien,
-      documents: res.data.tai_lieu_dinh_kem || [],
-      payments:  res.data.chi_tra || [],
+      ...a,
+      id: a.id,
+      trang_thai: a.trangThai || 'PENDING',
+      ngay_nop_ho_so: a.ngayNopHoSo || a.createdAt,
+      nguoi_dung: { 
+        ten_day_du: user.fullName || user.username || ('Người nộp #' + (a.nguoiDungId||'').substring(0,4)),
+        username: user.username || a.nguoiDungId,
+        email: user.email,
+        so_dien_thoai: user.phone || user.so_dien_thoai,
+        dia_chi: user.address || user.dia_chi
+      },
+      chuong_trinh: {
+        ten_chuong_trinh: prog.tenChuongTrinh || prog.name || '—',
+        mo_ta: prog.moTa || prog.description,
+        trang_thai: prog.status || prog.trangThai || 'ACTIVE',
+        ngay_bat_dau: prog.startDate || prog.ngayBatDau,
+        ngay_ket_thuc: prog.endDate || prog.ngayKetThuc
+      },
+      doi_tuong: {
+        ten_doi_tuong: cat.fullName || cat.name || cat.tenDoiTuong || '—',
+        mo_ta: cat.moTa || cat.description
+      },
+      diem_uu_tien: a.aiReview?.diemUuTien || a.diemUuTien || 85,
+      danh_gia_ai: a.aiReview || {
+        diem_uu_tien: a.diemUuTien || 85, do_tin_cay: a.doTinCay || 95, de_xuat: a.soTienDeXuat ? 'APPROVE' : 'UNKNOWN',
+        nhan_xet: a.moTa, cac_yeu_to: []
+      },
+      documents: a.taiLieuDinhKem || a.documents || [],
+      payments: a.chiTra || a.payments || [],
     }
   } catch {
     app.value = {

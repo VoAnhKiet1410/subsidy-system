@@ -441,18 +441,33 @@ async function loadData() {
   // Recent hồ sơ — thử từ API
   const bgs = ['bg-blue-100 text-blue-700', 'bg-emerald-100 text-emerald-700', 'bg-amber-100 text-amber-700', 'bg-purple-100 text-purple-700', 'bg-red-100 text-red-700']
   try {
-    const res = await applicationsApi.getAll({ page: 0, size: 5, sort: 'ngay_nop,desc' })
-    const list = res.data?.content || res.data || []
+    const [resApps, resUsers, resProgs] = await Promise.all([
+      applicationsApi.getAll({ page: 0, size: 5, sort: 'createdAt,desc' }),
+      http.get('/users', { params: { size: 1000 } }).catch(()=>({data:[]})),
+      http.get('/programs', { params: { size: 500 } }).catch(()=>({data:[]}))
+    ])
+
+    const list = resApps.data?.content || resApps.data || []
+    const usersList = resUsers.data?.content || resUsers.data || []
+    const progsList = resProgs.data?.content || resProgs.data || []
+
+    const userMap = Object.fromEntries(usersList.map(u => [u.id, u.fullName || u.username]))
+    const userMapByUsername = Object.fromEntries(usersList.map(u => [u.username, u.fullName || u.username]))
+    const progMap = Object.fromEntries(progsList.map(p => [p.id, p.tenChuongTrinh || p.name || '—']))
+
     if (list.length) {
-      recentHoSo.value = list.map((hs, i) => ({
-        id: hs.id,
-        ten_nguoi_nop: hs.ho_ten || hs.ten_nguoi_nop || 'N/A',
-        chuong_trinh: hs.ten_chuong_trinh || hs.chuong_trinh || '',
-        ngay_nop: hs.ngay_nop ? new Date(hs.ngay_nop).toLocaleDateString('vi-VN') : '',
-        trang_thai: hs.trang_thai || 'PENDING',
-        initials: (hs.ho_ten || 'N').substring(0, 2).toUpperCase(),
-        avatarBg: bgs[i % bgs.length],
-      }))
+      recentHoSo.value = list.map((hs, i) => {
+        const uName = userMap[hs.nguoiDungId] || userMapByUsername[hs.nguoiDungId] || 'Người nộp #' + (hs.nguoiDungId||'').substring(0,4)
+        return {
+          id: hs.id,
+          ten_nguoi_nop: uName,
+          chuong_trinh: progMap[hs.chuongTrinhId] || '—',
+          ngay_nop: hs.ngayNopHoSo || hs.createdAt ? new Date(hs.ngayNopHoSo || hs.createdAt).toLocaleDateString('vi-VN') : '—',
+          trang_thai: hs.trangThai || 'PENDING',
+          initials: (uName || 'X').split(' ').slice(-1)[0][0].toUpperCase(),
+          avatarBg: bgs[i % bgs.length],
+        }
+      })
     } else throw new Error('empty')
   } catch {
     recentHoSo.value = [

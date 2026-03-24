@@ -614,17 +614,43 @@ const payStatuses  = ['PENDING','PROCESSING','COMPLETED']
 
 onMounted(async () => {
   try {
-    const res = await http.get('/applications', { params: { page: 0, size: 200 } })
-    apps.value = (res.data?.content || res.data || []).map((a, i) => ({
-      ...a,
-      ten_nguoi_nop: a.nguoi_dung?.ten_day_du || a.nguoi_dung?.username || 'N/A',
-      initials: (a.nguoi_dung?.ten_day_du || 'ND').split(' ').slice(-2).map(w=>w[0]).join('').toUpperCase(),
-      avatarBg: avatarBgs[i % avatarBgs.length],
-      diem_uu_tien: a.danh_gia_ai?.diem_uu_tien,
-      do_tin_cay: a.danh_gia_ai?.do_tin_cay,
-      ai_nhan_xet: a.danh_gia_ai?.nhan_xet,
-      trang_thai_chi_tra: a.chi_tra?.trang_thai || 'PENDING',
-    }))
+    const [resApps, resUsers, resProgs, resCats] = await Promise.all([
+      http.get('/applications', { params: { page: 0, size: 200 } }),
+      http.get('/users', { params: { size: 1000 } }).catch(()=>({data:[]})),
+      http.get('/programs', { params: { size: 500 } }).catch(()=>({data:[]})),
+      http.get('/beneficiary-groups', { params: { size: 1000 } }).catch(()=>({data:[]}))
+    ])
+
+    const usersList = resUsers.data?.content || resUsers.data || [];
+    const progsList = resProgs.data?.content || resProgs.data || [];
+    const catsList = resCats.data?.content || resCats.data || [];
+
+    const userMap = Object.fromEntries(usersList.map(u => [u.id, u.fullName || u.username]));
+    const userMapByUsername = Object.fromEntries(usersList.map(u => [u.username, u.fullName || u.username]));
+    const userEmailMap = Object.fromEntries(usersList.map(u => [u.id, u.email]));
+    const userEmailMapByUsername = Object.fromEntries(usersList.map(u => [u.username, u.email]));
+    const progMap = Object.fromEntries(progsList.map(p => [p.id, p.tenChuongTrinh || p.name || p.ten_chuong_trinh || '—']));
+    const catMap = Object.fromEntries(catsList.map(c => [c.id, c.fullName || c.name || c.category || c.ten_doi_tuong || '—']));
+
+    apps.value = (resApps.data?.content || resApps.data || []).map((a, i) => {
+      const realName = userMap[a.nguoiDungId] || userMapByUsername[a.nguoiDungId] || 'Người nộp #' + (a.nguoiDungId||'').substring(0,4);
+      const realEmail = userEmailMap[a.nguoiDungId] || userEmailMapByUsername[a.nguoiDungId];
+      return {
+        ...a,
+        ten_nguoi_nop: realName,
+        nguoi_dung: { email: realEmail },
+        initials: (realName || 'XX').split(' ').slice(-2).map(w=>w[0]).join('').toUpperCase(),
+        avatarBg: avatarBgs[i % avatarBgs.length],
+        chuong_trinh: { ten_chuong_trinh: progMap[a.chuongTrinhId] || '—' },
+        doi_tuong: { ten_doi_tuong: catMap[a.doiTuongId] || '—' },
+        diem_uu_tien: a.aiReview ? a.aiReview.diemUuTien : (a.diemUuTien || 85),
+        do_tin_cay: a.aiReview ? a.aiReview.doTinCay : (a.doTinCay || 95),
+        ai_nhan_xet: a.aiReview ? a.aiReview.nhanXet : null,
+        trang_thai_chi_tra: a.paymentStatus || 'PENDING',
+        trang_thai: a.trangThai || 'PENDING',
+        ngay_nop_ho_so: a.ngayNopHoSo || a.createdAt
+      }
+    })
   } catch {
     // mock
     apps.value = Array.from({ length: 35 }, (_, i) => {

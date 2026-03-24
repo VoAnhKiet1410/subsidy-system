@@ -145,6 +145,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { applicationsApi } from '../../api/applications'
+import { authStore } from '../../stores/auth'
+import http from '../../api/http'
 
 const route = useRoute()
 const loading = ref(true)
@@ -171,8 +173,32 @@ const app = ref(fallback)
 onMounted(async () => {
   loading.value = true
   try {
-    const res = await applicationsApi.getById(route.params.id)
-    app.value = res.data || fallback
+    const [resApp, resProgs] = await Promise.all([
+      applicationsApi.getById(route.params.id),
+      http.get('/programs', { params: { size: 500 } }).catch(() => ({ data: [] }))
+    ])
+    
+    const a = resApp.data || fallback
+    const progsList = resProgs.data?.content || resProgs.data || []
+    const prog = progsList.find(p => p.id === a.chuongTrinhId) || {}
+    const user = authStore.user || {}
+
+    app.value = {
+      ...a,
+      id: a.id || route.params.id,
+      ten_chuong_trinh: prog.tenChuongTrinh || prog.name || '—',
+      trang_thai: a.trangThai || 'PENDING',
+      ngay_nop: a.ngayNopHoSo || a.createdAt,
+      ly_do_tu_choi: a.lyDoTuChoi,
+      ho_ten: user.fullName || user.username || a.nguoiDungId,
+      so_cccd: user.so_cccd || '—',
+      ngay_sinh: user.ngay_sinh || '—',
+      so_dien_thoai: user.phone || user.so_dien_thoai || '—',
+      dia_chi: user.address || user.dia_chi || '—',
+      ly_do: a.moTa || '—',
+      tai_lieu: a.taiLieuDinhKem || a.documents || [],
+      ai_review: a.aiReview ? { diem: a.aiReview.diemUuTien, tin_cay: a.aiReview.doTinCay, nhan_xet: a.aiReview.nhanXet } : null
+    }
   } catch {
     app.value = { ...fallback, id: Number(route.params.id) || fallback.id }
   } finally {
