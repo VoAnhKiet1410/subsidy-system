@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="min-h-screen bg-slate-50/60">
 
     <!-- ── TOPBAR ── -->
@@ -37,7 +37,7 @@
               </div>
               <div class="flex-1 min-w-0">
                 <p class="font-bold text-slate-800 text-sm truncate">{{ app.ten_nguoi_nop }}</p>
-                <p class="text-xs text-slate-400">#HS-{{ app.id }}</p>
+                <p class="text-xs text-slate-400">{{ formatMaHoSo(app.id) }}</p>
                 <div class="flex items-center gap-1.5 mt-1.5">
                   <span v-for="tag in app.tags" :key="tag.label"
                     :class="['px-1.5 py-0.5 rounded text-[9px] font-black', tag.color]">{{ tag.label }}</span>
@@ -66,7 +66,7 @@
               <span class="material-symbols-outlined text-slate-400 text-sm">folder</span>
               <span class="font-bold text-slate-700 text-sm truncate">{{ selectedApp.ten_nguoi_nop }}</span>
               <span class="text-slate-300">·</span>
-              <span class="text-xs text-slate-400">#HS-{{ selectedApp.id }}</span>
+              <span class="text-xs text-slate-400">{{ formatMaHoSo(selectedApp.id) }}</span>
             </div>
             <div class="flex gap-1">
               <button v-for="doc in selectedApp.documents" :key="doc.id"
@@ -331,7 +331,7 @@
               </div>
               <div>
                 <h3 class="text-xl font-black text-slate-800">{{ manualModal.action === 'approve' ? 'Phê duyệt thủ công' : 'Từ chối hồ sơ' }}</h3>
-                <p class="text-xs text-slate-400">#HS-{{ selectedApp?.id }} · {{ selectedApp?.ten_nguoi_nop }}</p>
+                <p class="text-xs text-slate-400">{{ formatMaHoSo(selectedApp?.id) }} · {{ selectedApp?.ten_nguoi_nop }}</p>
               </div>
             </div>
 
@@ -383,7 +383,7 @@
               </div>
               <div>
                 <h3 class="text-xl font-black text-slate-800">Yêu cầu bổ sung</h3>
-                <p class="text-xs text-slate-400">#HS-{{ selectedApp?.id }} · {{ selectedApp?.ten_nguoi_nop }}</p>
+                <p class="text-xs text-slate-400">{{ formatMaHoSo(selectedApp?.id) }} · {{ selectedApp?.ten_nguoi_nop }}</p>
               </div>
             </div>
 
@@ -469,6 +469,7 @@
 </template>
 
 <script setup>
+import { formatMaHoSo } from '../utils/maHoSo'
 import { ref, computed } from 'vue'
 import { useUI } from '../stores/ui'
 
@@ -595,7 +596,7 @@ function confirmAI() {
   const idx = queue.value.findIndex(a => a.id === app.id)
   if (idx !== -1) queue.value.splice(idx, 1)
 
-  ui.showSuccess(`Đã xác nhận AI → ${isApprove ? 'Phê duyệt' : 'Chuyển xét duyệt'} #HS-${app.id}`)
+  ui.showSuccess(`Đã xác nhận AI → ${isApprove ? 'Phê duyệt' : 'Chuyển xét duyệt'} formatMaHoSo(app.id)`)
 
   // Chuyển sang hồ sơ tiếp theo
   selectedApp.value = queue.value[0] || null
@@ -617,13 +618,13 @@ function confirmManual() {
     app.ghi_chu_duyet = manualModal.value.note
     const idx = queue.value.findIndex(a => a.id === app.id)
     if (idx !== -1) queue.value.splice(idx, 1)
-    ui.showSuccess(`Đã phê duyệt thủ công #HS-${app.id}!`)
+    ui.showSuccess(`Đã phê duyệt thủ công formatMaHoSo(app.id)!`)
   } else {
     app.trang_thai = 'REJECTED'
     app.ly_do_tu_choi = manualModal.value.note
     const idx = queue.value.findIndex(a => a.id === app.id)
     if (idx !== -1) queue.value.splice(idx, 1)
-    ui.showError(`Đã từ chối #HS-${app.id}: ${manualModal.value.note}`)
+    ui.showError(`Đã từ chối formatMaHoSo(app.id): ${manualModal.value.note}`)
   }
 
   manualModal.value.show = false
@@ -697,7 +698,7 @@ async function batchRun() {
 
   for (let i = 0; i < queue.value.length; i++) {
     const app = queue.value[i]
-    batchModal.value.current = `Đang phân tích: ${app.ten_nguoi_nop} (#HS-${app.id})...`
+    batchModal.value.current = `Đang phân tích: ${app.ten_nguoi_nop} (formatMaHoSo(app.id))...`
 
     await sleep(1200 + Math.random() * 800)
 

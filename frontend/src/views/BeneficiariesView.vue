@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="min-h-screen bg-slate-50/60">
 
     <!-- ══ CITIZEN: hồ sơ cá nhân ══ -->
@@ -30,7 +30,7 @@
               </div>
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2">
-                  <p class="font-bold text-slate-800">#HS-{{ app.id }}</p>
+                  <p class="font-bold text-slate-800">{{ formatMaHoSo(app.id) }}</p>
                   <span :class="['px-2 py-0.5 rounded-full text-[10px] font-black', statusStyle(app.trang_thai).badge]">{{ statusLabel(app.trang_thai) }}</span>
                 </div>
                 <p class="text-xs text-slate-400 mt-0.5">{{ app.chuong_trinh?.ten_chuong_trinh || 'N/A' }} · Nộp {{ formatDate(app.ngay_nop_ho_so) }}</p>
@@ -159,8 +159,7 @@
                     <div class="flex items-center gap-2">
                       <span v-if="app.trang_thai === 'PENDING'" class="material-symbols-outlined text-amber-500 text-sm flex-shrink-0" style="font-variation-settings:'FILL' 1;" title="Chưa duyệt — Ưu tiên">star</span>
                       <div>
-                        <p class="font-black text-slate-800">#HS-{{ app.id }}</p>
-                        <p class="text-[10px] text-slate-400">ID: {{ app.id }}</p>
+                        <p class="font-black text-slate-800">{{ formatMaHoSo(app.id) }}</p>
                       </div>
                     </div>
                   </td>
@@ -296,7 +295,7 @@
           <div :class="['h-1.5 w-full', statusStyle(quickViewApp.trang_thai).gradient]"></div>
           <div class="flex items-center justify-between px-6 py-5 border-b border-slate-100">
             <div>
-              <h3 class="font-black text-slate-800">Xem nhanh · #HS-{{ quickViewApp.id }}</h3>
+              <h3 class="font-black text-slate-800">Xem nhanh · {{ formatMaHoSo(quickViewApp.id) }}</h3>
               <p class="text-xs text-slate-400 mt-0.5">{{ formatDate(quickViewApp.ngay_nop_ho_so) }}</p>
             </div>
             <div class="flex items-center gap-2">
@@ -409,7 +408,7 @@
               </div>
               <div>
                 <h3 class="text-xl font-black text-slate-800">Từ chối hồ sơ</h3>
-                <p class="text-xs text-slate-400">#HS-{{ rejectModal.app?.id }}</p>
+                <p class="text-xs text-slate-400">{{ formatMaHoSo(rejectModal.app?.id) }}</p>
               </div>
             </div>
             <div>
@@ -432,6 +431,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, h } from 'vue'
+import { formatMaHoSo } from '../utils/maHoSo'
 import { useRouter } from 'vue-router'
 import { authStore } from '../stores/auth'
 import { useUI } from '../stores/ui'
@@ -571,7 +571,7 @@ function confirmReject() {
 
 function approveApp(app) {
   app.trang_thai = 'APPROVED'
-  ui.showSuccess(`Đã phê duyệt hồ sơ #HS-${app.id}!`)
+  ui.showSuccess(`Đã phê duyệt hồ sơ ${formatMaHoSo(app.id)}!`)
   openMenuId.value = null
 }
 function viewDocs(app) { openDetail(app); openMenuId.value = null }

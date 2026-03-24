@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="space-y-5">
 
     <!-- BACK BUTTON -->
@@ -20,7 +20,7 @@
               <h1 class="text-xl font-black text-slate-800">{{ app.ten_chuong_trinh }}</h1>
               <span :class="['px-3 py-1 rounded-full text-xs font-black flex-shrink-0', statusBadge]">{{ statusLabel }}</span>
             </div>
-            <p class="text-sm text-slate-400">#HS-{{ app.id }} · Nộp ngày {{ formatDate(app.ngay_nop) }}</p>
+            <p class="text-sm text-slate-400">{{ formatMaHoSo(app.id) }} · Nộp ngày {{ formatDate(app.ngay_nop) }}</p>
           </div>
         </div>
       </div>
@@ -142,6 +142,7 @@
 </template>
 
 <script setup>
+import { formatMaHoSo } from '../../utils/maHoSo'
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { applicationsApi } from '../../api/applications'

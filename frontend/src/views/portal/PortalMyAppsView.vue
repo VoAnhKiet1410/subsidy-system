@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="space-y-5">
     <div class="flex items-center justify-between">
       <h1 class="text-2xl font-black text-slate-800">Hồ sơ của tôi</h1>
@@ -37,7 +37,7 @@
               <p class="font-bold text-slate-800">{{ app.ten_chuong_trinh }}</p>
               <span :class="['px-2.5 py-1 rounded-full text-[10px] font-black flex-shrink-0', stStyle(app.trang_thai).badge]">{{ stStyle(app.trang_thai).label }}</span>
             </div>
-            <p class="text-xs text-slate-400 mb-3">#HS-{{ app.id }} · Nộp {{ formatDate(app.ngay_nop) }}</p>
+            <p class="text-xs text-slate-400 mb-3">{{ formatMaHoSo(app.id) }} · Nộp {{ formatDate(app.ngay_nop) }}</p>
             <!-- Timeline dots -->
             <div class="flex items-center gap-2">
               <div v-for="(st, i) in timelineSteps" :key="i" class="flex items-center gap-1.5">
@@ -57,6 +57,7 @@
 </template>
 
 <script setup>
+import { formatMaHoSo } from '../../utils/maHoSo'
 import { ref, computed, onMounted } from 'vue'
 import { applicationsApi } from '../../api/applications'
 

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="space-y-6 max-w-2xl mx-auto">
 
     <!-- HEADER -->
@@ -191,7 +191,7 @@
     <div v-if="submitted" class="bg-white rounded-3xl border border-slate-200/80 shadow-sm p-10 text-center">
       <span class="material-symbols-outlined text-6xl text-emerald-500 block mb-4" style="font-variation-settings:'FILL' 1;">check_circle</span>
       <h2 class="text-2xl font-black text-slate-800 mb-2">Nộp hồ sơ thành công!</h2>
-      <p class="text-xl font-black text-primary mb-2">#HS-{{ newAppId }}</p>
+      <p class="text-xl font-black text-primary mb-2">{{ formatMaHoSo(newAppId) }}</p>
       <p class="text-sm text-slate-400 mb-6">Chúng tôi sẽ xem xét và thông báo qua SMS khi có kết quả.</p>
       <div class="flex gap-3 justify-center">
         <router-link to="/portal/ho-so-cua-toi" class="px-5 py-2.5 bg-primary text-white text-sm font-bold rounded-xl">Theo dõi hồ sơ</router-link>
@@ -216,6 +216,7 @@
 </template>
 
 <script setup>
+import { formatMaHoSo } from '../../utils/maHoSo'
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useUI } from '../../stores/ui'

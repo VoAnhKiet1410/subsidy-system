@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="space-y-6">
 
     <!-- HERO -->
@@ -75,7 +75,7 @@
                 <p class="font-bold text-slate-800 text-sm truncate">{{ app.ten_chuong_trinh }}</p>
                 <span :class="['px-2.5 py-1 rounded-full text-[10px] font-black flex-shrink-0', stStyle(app.trang_thai).badge]">{{ stStyle(app.trang_thai).label }}</span>
               </div>
-              <p class="text-xs text-slate-400 mt-0.5">#HS-{{ app.id }} · Nộp {{ formatDate(app.ngay_nop) }}</p>
+              <p class="text-xs text-slate-400 mt-0.5">{{ formatMaHoSo(app.id) }} · Nộp {{ formatDate(app.ngay_nop) }}</p>
               <!-- Mini timeline -->
               <div class="flex items-center gap-1 mt-2">
                 <div v-for="(step, i) in app.steps" :key="i"
@@ -120,6 +120,7 @@
 </template>
 
 <script setup>
+import { formatMaHoSo } from '../../utils/maHoSo'
 import { ref, computed, onMounted } from 'vue'
 import { authStore } from '../../stores/auth'
 import { applicationsApi } from '../../api/applications'

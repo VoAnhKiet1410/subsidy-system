@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="min-h-screen bg-slate-50/60">
 
     <!-- ── STICKY HEADER ── -->
@@ -8,7 +8,7 @@
       </button>
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-3 flex-wrap">
-          <h2 class="text-lg font-black text-slate-800">#HS-{{ app.id }}</h2>
+          <h2 class="text-lg font-black text-slate-800">{{ formatMaHoSo(app.id) }}</h2>
           <span :class="['px-3 py-1 rounded-full text-xs font-black', st.badge]">{{ st.label }}</span>
           <span v-if="app.diem_uu_tien >= 80" class="flex items-center gap-1 px-2.5 py-1 bg-amber-100 text-amber-700 rounded-full text-[10px] font-black">
             <span class="material-symbols-outlined text-sm" style="font-variation-settings:'FILL' 1;">star</span>Ưu tiên cao
@@ -360,7 +360,7 @@
               <div class="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center">
                 <span class="material-symbols-outlined text-2xl" style="font-variation-settings:'FILL' 1;">cancel</span>
               </div>
-              <div><h3 class="text-xl font-black text-slate-800">Từ chối hồ sơ</h3><p class="text-xs text-slate-400">#HS-{{ app.id }}</p></div>
+              <div><h3 class="text-xl font-black text-slate-800">Từ chối hồ sơ</h3><p class="text-xs text-slate-400">{{ formatMaHoSo(app.id) }}</p></div>
             </div>
             <textarea v-model="rejectReason" rows="4" placeholder="Nhập lý do từ chối chi tiết..."
               class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-200 resize-none"></textarea>
@@ -383,7 +383,7 @@
               <div class="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
                 <span class="material-symbols-outlined text-2xl" style="font-variation-settings:'FILL' 1;">payments</span>
               </div>
-              <div><h3 class="text-xl font-black text-slate-800">Tạo chi trả</h3><p class="text-xs text-slate-400">#HS-{{ app.id }}</p></div>
+              <div><h3 class="text-xl font-black text-slate-800">Tạo chi trả</h3><p class="text-xs text-slate-400">{{ formatMaHoSo(app.id) }}</p></div>
             </div>
             <div class="space-y-4">
               <div>
@@ -421,6 +421,7 @@
 </template>
 
 <script setup>
+import { formatMaHoSo } from '../utils/maHoSo'
 import { ref, computed, onMounted, h } from 'vue'
 import { useRoute } from 'vue-router'
 import { authStore } from '../stores/auth'
@@ -474,7 +475,7 @@ const STATUS_FALLBACK = { badge:'bg-slate-100 text-slate-600', iconBg:'bg-slate-
 const st = computed(() => STATUS_MAP[app.value.trang_thai] || STATUS_FALLBACK)
 
 const quickInfo = computed(() => [
-  { label: 'Mã hồ sơ',    value: `#HS-${app.value.id}` },
+  { label: 'Mã hồ sơ',    value: `formatMaHoSo(app.value.id)` },
   { label: 'Ngày nộp',    value: formatDate(app.value.ngay_nop_ho_so) },
   { label: 'Đối tượng',   value: app.value.doi_tuong?.ten_doi_tuong || '—' },
   { label: 'Chương trình',value: app.value.chuong_trinh?.ten_chuong_trinh || '—' },
@@ -494,7 +495,7 @@ const timeline = computed(() => {
 
 function approveApp() {
   app.value.trang_thai = 'APPROVED'
-  ui.showSuccess(`Đã phê duyệt hồ sơ #HS-${app.value.id}!`)
+  ui.showSuccess(`Đã phê duyệt hồ sơ formatMaHoSo(app.value.id)!`)
 }
 function confirmReject() {
   app.value.trang_thai = 'REJECTED'
