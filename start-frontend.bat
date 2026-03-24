@@ -1,8 +1,8 @@
 @echo off
 chcp 65001 >nul
-echo ═══════════════════════════════════════════════════
-echo   Khởi chạy Frontend - Hệ thống Trợ cấp Xã hội
-echo ═══════════════════════════════════════════════════
+echo ===================================================
+echo   Khoi chay Frontend - He thong Tro cap Xa hoi
+echo ===================================================
 echo.
 
 cd /d "%~dp0frontend"
