@@ -46,7 +46,9 @@ public class DataSeeder implements CommandLineRunner {
         seedUsers();
 
         if (chuongTrinhRepository.count() > 0) {
-            log.info("Dữ liệu nghiệp vụ đã tồn tại, bỏ qua seed.");
+            log.info("Dữ liệu nghiệp vụ đã tồn tại, kiểm tra và fix applications...");
+            // Fix applications cũ có thể dùng username thay vì MongoDB ID
+            fixApplicationsNguoiDungId();
             return;
         }
         log.info("Bắt đầu khởi tạo dữ liệu mẫu...");
@@ -57,6 +59,24 @@ public class DataSeeder implements CommandLineRunner {
         seedAuditLogs();
         seedNotifications();
         log.info("Khởi tạo dữ liệu mẫu hoàn tất!");
+    }
+
+    /**
+     * Fix các hồ sơ seed cũ dùng username "citizen1" thay vì MongoDB ID thực.
+     */
+    private void fixApplicationsNguoiDungId() {
+        nguoiDungRepository.findByUsername("citizen1").ifPresent(citizen -> {
+            String correctId = citizen.getId();
+            // Tìm và sửa các hồ sơ dùng username thay vì ID
+            var wrongApps = hoSoRepository.findAll().stream()
+                    .filter(app -> "citizen1".equals(app.getNguoiDungId()))
+                    .toList();
+            if (!wrongApps.isEmpty()) {
+                wrongApps.forEach(app -> app.setNguoiDungId(correctId));
+                hoSoRepository.saveAll(wrongApps);
+                log.info("Đã fix {} hồ sơ: cập nhật nguoiDungId từ 'citizen1' → '{}'", wrongApps.size(), correctId);
+            }
+        });
     }
 
     private void seedUsers() {
@@ -190,14 +210,19 @@ public class DataSeeder implements CommandLineRunner {
     private void seedApplications(List<DoiTuongHuongTruCap> beneficiaries) {
         String[] statuses = {"DRAFT", "SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED"};
 
+        // Lấy đúng MongoDB ID của citizen1 (không phải username)
+        String citizen1Id = nguoiDungRepository.findByUsername("citizen1")
+                .map(u -> u.getId())
+                .orElse("citizen1"); // fallback nếu chưa có
+
         List<HoSoHoTro> apps = new ArrayList<>();
         for (int i = 0; i < Math.min(5, beneficiaries.size()); i++) {
             DoiTuongHuongTruCap b = beneficiaries.get(i);
 
             apps.add(HoSoHoTro.builder()
-                .nguoiDungId("citizen1")        // ref tới user
-                .doiTuongId(b.getId())           // ref tới beneficiary
-                .chuongTrinhId(b.getProgramId()) // ref tới program
+                .nguoiDungId(citizen1Id)          // ref tới MongoDB ID thực của citizen1
+                .doiTuongId(b.getId())             // ref tới beneficiary
+                .chuongTrinhId(b.getProgramId())   // ref tới program
                 .moTa("Hồ sơ đề nghị hỗ trợ cho " + b.getFullName())
                 .trangThai(statuses[i])
                 .soTienDeXuat(b.getSubsidyAmount())
