@@ -1,0 +1,14 @@
+spring:
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/trocap_test
+      auto-index-creation: true
+
+jwt:
+  secret: TestSecretKeyForJWTTokenGenerationMustBeLongEnough256BitsForHMACSHA!!
+  expiration: 3600000
+  refresh-expiration: 86400000
+
+app:
+  file:
+    upload-dir: uploads-test

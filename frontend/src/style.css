@@ -1,0 +1,277 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Inter', sans-serif;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+}
+
+.editorial-tight {
+  letter-spacing: -0.02em;
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(194, 198, 216, 0.2);
+}
+
+.glass-panel {
+  backdrop-filter: blur(16px);
+  background: rgba(255, 255, 255, 0.85);
+}
+
+/* ============================================
+   PAGE TRANSITIONS
+   ============================================ */
+.page-enter-active {
+  animation: pageIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.page-leave-active {
+  animation: pageOut 0.2s ease-in both;
+}
+@keyframes pageIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes pageOut {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-8px); }
+}
+
+/* ============================================
+   FADE IN UP (dùng cho cards, rows)
+   ============================================ */
+.fade-up {
+  animation: fadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* stagger delay cho v-for */
+.fade-up:nth-child(1)  { animation-delay: 0.05s; }
+.fade-up:nth-child(2)  { animation-delay: 0.10s; }
+.fade-up:nth-child(3)  { animation-delay: 0.15s; }
+.fade-up:nth-child(4)  { animation-delay: 0.20s; }
+.fade-up:nth-child(5)  { animation-delay: 0.25s; }
+.fade-up:nth-child(6)  { animation-delay: 0.30s; }
+
+/* ============================================
+   SLIDE IN FROM LEFT (sidebar items)
+   ============================================ */
+.slide-in {
+  animation: slideIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ============================================
+   SKELETON SHIMMER (loading state)
+   ============================================ */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: #e2e8f0;
+  border-radius: 0.5rem;
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.6) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position:  200% 0; }
+}
+
+/* ============================================
+   CARD LIFT ON HOVER
+   ============================================ */
+.card-lift {
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+.card-lift:hover {
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: 0 20px 40px -12px rgba(0, 80, 203, 0.15);
+}
+
+/* ============================================
+   PULSE BADGE (notification dot)
+   ============================================ */
+.pulse-dot {
+  position: relative;
+}
+.pulse-dot::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.3;
+  animation: pulseDot 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+@keyframes pulseDot {
+  0%, 100% { transform: scale(1); opacity: 0.3; }
+  50%       { transform: scale(1.6); opacity: 0; }
+}
+
+/* ============================================
+   RIPPLE EFFECT (buttons)
+   ============================================ */
+.ripple {
+  position: relative;
+  overflow: hidden;
+}
+.ripple::after {
+  content: '';
+  position: absolute;
+  width: 200%;
+  height: 200%;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  background: rgba(255,255,255,0.25);
+  border-radius: 50%;
+  transition: transform 0.5s ease, opacity 0.5s ease;
+  opacity: 0;
+}
+.ripple:active::after {
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+  transition: 0s;
+}
+
+/* ============================================
+   FLOAT ANIMATION (decorative icons)
+   ============================================ */
+.float {
+  animation: float 4s ease-in-out infinite;
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%        { transform: translateY(-8px); }
+}
+
+/* ============================================
+   SPIN LOADER
+   ============================================ */
+.spin-slow {
+  animation: spin 2s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ============================================
+   SCALE IN (modal, dropdown)
+   ============================================ */
+.scale-in {
+  animation: scaleIn 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: top center;
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scaleY(0.92) translateY(-8px); }
+  to   { opacity: 1; transform: scaleY(1) translateY(0); }
+}
+
+/* ============================================
+   NUMBER COUNTER (tăng dần khi load)
+   ============================================ */
+.count-up {
+  animation: countUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================
+   HIGHLIGHT FLASH (row update)
+   ============================================ */
+.flash-highlight {
+  animation: flashHighlight 1.2s ease both;
+}
+@keyframes flashHighlight {
+  0%   { background: rgba(0, 80, 203, 0.08); }
+  100% { background: transparent; }
+}
+
+/* ============================================
+   PROGRESS BAR FILL
+   ============================================ */
+.progress-fill {
+  animation: progressFill 1s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: left;
+}
+@keyframes progressFill {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+/* ============================================
+   SIDEBAR NAV INDICATOR
+   ============================================ */
+.nav-active-indicator {
+  animation: navSlideIn 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes navSlideIn {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+
+/* ============================================
+   TABLE ROW STAGGER
+   ============================================ */
+tbody tr {
+  animation: rowIn 0.3s ease both;
+}
+tbody tr:nth-child(1)  { animation-delay: 0.03s; }
+tbody tr:nth-child(2)  { animation-delay: 0.06s; }
+tbody tr:nth-child(3)  { animation-delay: 0.09s; }
+tbody tr:nth-child(4)  { animation-delay: 0.12s; }
+tbody tr:nth-child(5)  { animation-delay: 0.15s; }
+tbody tr:nth-child(6)  { animation-delay: 0.18s; }
+tbody tr:nth-child(7)  { animation-delay: 0.21s; }
+tbody tr:nth-child(8)  { animation-delay: 0.24s; }
+tbody tr:nth-child(9)  { animation-delay: 0.27s; }
+tbody tr:nth-child(10) { animation-delay: 0.30s; }
+@keyframes rowIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ============================================
+   SMOOTH ALL TRANSITIONS
+   ============================================ */
+*, *::before, *::after {
+  transition-property: color, background-color, border-color, box-shadow, opacity;
+  transition-duration: 150ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+/* Loại trừ transform để không conflict */
+.card-lift, .pulse-dot::before, .ripple::after,
+.float, .spin-slow, .scale-in, .fade-up, .slide-in,
+.page-enter-active, .page-leave-active {
+  transition-property: none;
+}
+

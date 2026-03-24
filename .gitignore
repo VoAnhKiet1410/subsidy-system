@@ -1,0 +1,29 @@
+# === Backend ===
+backend/target/
+backend/.mvn/
+backend/*.jar
+backend/*.log
+
+# === Frontend ===
+frontend/node_modules/
+frontend/dist/
+
+# === IDE ===
+.vscode/
+.idea/
+*.iml
+*.swp
+*.swo
+
+# === OS ===
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# === Test files ===
+test_*.xlsx
+*.tmp
+
+# === Environment ===
+.env
+.env.local
