@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="space-y-5 max-w-2xl mx-auto">
 
     <!-- HEADER CARD -->
@@ -59,6 +59,39 @@
 
       <!-- EDIT MODE -->
       <div v-else class="p-5 space-y-4">
+        
+        <!-- eKYC Scanner Block -->
+        <div class="bg-blue-50/50 border border-blue-200 rounded-2xl p-5 flex flex-col items-center justify-center text-center">
+          <div class="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 mb-2 shadow-sm">
+            <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">qr_code_scanner</span>
+          </div>
+          <p class="font-black text-blue-900 text-sm">eKYC - Định danh tự động</p>
+          <p class="text-xs text-blue-700/80 font-medium mt-1 mb-4">Mã QR trên CCCD Việt Nam rất nhỏ, Camera máy tính thường bị mờ. Vui lòng tải một tấm ảnh rõ nét lên để tốc độ nhận diện đạt 100%.</p>
+          
+          <!-- File Input for QR -->
+          <div class="relative overflow-hidden w-full max-w-xs group cursor-pointer transition-all text-center">
+             <button class="w-full flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl shadow-md border-0 group-hover:bg-blue-700 transition">
+               <span class="material-symbols-outlined text-sm">upload_file</span> Tải hoặc Chụp ảnh thẻ
+             </button>
+             <input type="file" @change="handleFileUpload" accept="image/*" class="absolute inset-0 opacity-0 cursor-pointer h-full w-full" :disabled="scanningFile" title="Chọn ảnh mã QR trên CCCD" />
+          </div>
+
+          <p v-if="scanningFile" class="text-xs font-bold text-amber-600 mt-3 flex items-center justify-center gap-1">
+            <span class="material-symbols-outlined text-sm animate-spin">progress_activity</span> Đang phân tích ảnh...
+          </p>
+
+          <div class="text-[11px] text-slate-400 mt-3 flex items-center justify-center border-t border-blue-200/50 pt-3 w-full opacity-60">
+             <i>Bạn không có ảnh sẵn?</i> &nbsp;
+             <button v-if="!scanning" @click="startScan" type="button" class="underline hover:text-blue-600 font-bold transition">Thử bật WebCam trực tiếp</button>
+             <button v-else @click="stopScan" type="button" class="text-red-500 font-bold underline">Tắt WebCam</button>
+          </div>
+
+          <!-- QR Reader Container -->
+          <div v-if="scanning" class="w-full max-w-sm mt-4 border-2 border-dashed border-blue-300 rounded-2xl overflow-hidden bg-black flex items-center justify-center min-h-[250px]">
+            <video id="qr-video" class="w-full h-full object-cover"></video>
+          </div>
+        </div>
+
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Họ và tên</label>
@@ -147,15 +180,189 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { authStore } from '../../stores/auth'
 import { useUI } from '../../stores/ui'
+import jsQR from 'jsqr'
 
 const router = useRouter()
 const ui = useUI()
 const editing = ref(false)
 const saving  = ref(false)
+const scanning = ref(false)
+const scanningFile = ref(false)
+
+let stream = null
+let requestAnimId = null
+
+// Helper: convert canvas pixels to high-contrast grayscale
+function toHighContrastGrayscale(ctx, width, height) {
+  const imageData = ctx.getImageData(0, 0, width, height)
+  const data = imageData.data
+  for (let i = 0; i < data.length; i += 4) {
+    // Weighted grayscale (luminance formula)
+    const gray = 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2]
+    // Apply contrast boost: push toward black or white
+    const boosted = gray < 128 ? Math.max(0, gray - 40) : Math.min(255, gray + 40)
+    data[i] = data[i+1] = data[i+2] = boosted
+  }
+  ctx.putImageData(imageData, 0, 0)
+  return ctx.getImageData(0, 0, width, height)
+}
+
+// START EKYC QR LOGIC (BarcodeDetector / jsQR + Grayscale Fallback)
+async function handleFileUpload(event) {
+  const file = event.target.files[0]
+  if (!file) return
+
+  scanningFile.value = true
+
+  try {
+    const imageBitmap = await createImageBitmap(file)
+    const W = imageBitmap.width
+    const H = imageBitmap.height
+
+    // --- Strategy 1: Native BarcodeDetector on original image ---
+    if ('BarcodeDetector' in window) {
+      const detector = new window.BarcodeDetector({ formats: ['qr_code'] })
+      // Try raw image first
+      let barcodes = await detector.detect(imageBitmap)
+      if (barcodes.length > 0) {
+        onScanSuccess(barcodes[0].rawValue, null)
+        return
+      }
+      // Try grayscale version via offscreen canvas
+      const offCanvas = document.createElement('canvas')
+      offCanvas.width = W; offCanvas.height = H
+      const offCtx = offCanvas.getContext('2d', { willReadFrequently: true })
+      offCtx.drawImage(imageBitmap, 0, 0)
+      toHighContrastGrayscale(offCtx, W, H)
+      const grayBitmap = await createImageBitmap(offCanvas)
+      barcodes = await detector.detect(grayBitmap)
+      if (barcodes.length > 0) {
+        onScanSuccess(barcodes[0].rawValue, null)
+        return
+      }
+    }
+
+    // --- Strategy 2: jsQR on grayscale-processed full-resolution image ---
+    const canvas = document.createElement('canvas')
+    canvas.width = W; canvas.height = H
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    ctx.drawImage(imageBitmap, 0, 0)
+    const grayData = toHighContrastGrayscale(ctx, W, H)
+
+    const code = jsQR(grayData.data, grayData.width, grayData.height, {
+      inversionAttempts: 'attemptBoth',
+    })
+
+    if (code) {
+      onScanSuccess(code.data, null)
+    } else {
+      ui.showWarning('Không đọc được mã QR! Vui lòng cắt crop ảnh sao cho chỉ còn phần ô vuông QR Code (góc trên phải của CCCD) rồi tải lên lại.')
+    }
+  } catch (err) {
+    console.error(err)
+    ui.showWarning('Có lỗi xử lý ảnh: ' + err.message)
+  } finally {
+    scanningFile.value = false
+    event.target.value = ''
+  }
+}
+
+async function startScan() {
+  scanning.value = true
+  await nextTick()
+  const videoElem = document.getElementById('qr-video')
+  
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    videoElem.srcObject = stream
+    videoElem.setAttribute('playsinline', true) 
+    videoElem.play()
+    requestAnimId = requestAnimationFrame(tick)
+  } catch (err) {
+    ui.showWarning('Lỗi mở Camera hoặc bị từ chối quyền: ' + err.message)
+    stopScan()
+  }
+}
+
+function tick() {
+  if (!scanning.value) return
+  const videoElem = document.getElementById('qr-video')
+  if (!videoElem) return
+
+  if (videoElem.readyState === videoElem.HAVE_ENOUGH_DATA) {
+    const canvas = document.createElement('canvas')
+    canvas.width = videoElem.videoWidth
+    canvas.height = videoElem.videoHeight
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    ctx.drawImage(videoElem, 0, 0, canvas.width, canvas.height)
+    
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    const code = jsQR(imageData.data, imageData.width, imageData.height, {
+      inversionAttempts: 'dontInvert',
+    })
+
+    if (code) {
+      onScanSuccess(code.data, null)
+      return
+    }
+  }
+  requestAnimId = requestAnimationFrame(tick)
+}
+
+function stopScan() {
+  scanning.value = false
+  if (requestAnimId) {
+    cancelAnimationFrame(requestAnimId)
+    requestAnimId = null
+  }
+  if (stream) {
+    stream.getTracks().forEach(track => track.stop())
+    stream = null
+  }
+  const videoElem = document.getElementById('qr-video')
+  if (videoElem) {
+    videoElem.srcObject = null
+  }
+}
+
+function onScanSuccess(decodedText, decodedResult) {
+  // Format CCCD: 001099000001|123456789|NGUYEN VAN A|01101999|Nam|Hà Nội|01102021
+  try {
+    const parts = decodedText.split('|')
+    if (parts.length >= 6) {
+      ui.showSuccess('Quét CCCD thành công! Nhận diện eKYC hoàn tất.')
+      stopScan()
+      
+      form.value.so_cccd = parts[0]
+      // Format name to Proper Case if needed, but let's just keep original uppercase or capitalize
+      form.value.ho_ten = parts[2]
+      
+      const dob = parts[3] // DDMMYYYY
+      if (dob && dob.length === 8) {
+        form.value.ngay_sinh = `${dob.substring(4,8)}-${dob.substring(2,4)}-${dob.substring(0,2)}`
+      }
+      
+      form.value.dia_chi = parts[5].replace(/,/g, ' -')
+    } else {
+      ui.showWarning('Mã QR không đúng định dạng thẻ CCCD Việt Nam')
+    }
+  } catch(e) {
+    ui.showWarning('Có lỗi xảy ra khi phân tích dữ liệu CCCD')
+  }
+}
+
+function onScanFailure(error) {
+  // Silent fail for camera scan frames
+}
+
+onBeforeUnmount(() => {
+  stopScan()
+})
+// END EKYC QR LOGIC
 
 const displayName = computed(() => authStore.user?.fullName || authStore.user?.username || 'Người dùng')
 const initials = computed(() => {
