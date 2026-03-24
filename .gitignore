@@ -1,6 +1,5 @@
 # === Backend ===
 backend/target/
-backend/.mvn/
 backend/*.jar
 backend/*.log
 

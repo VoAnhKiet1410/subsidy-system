@@ -7,8 +7,18 @@ echo.
 
 cd /d "%~dp0backend"
 
-echo [1/2] Build project (clean)...
-call mvn clean package -DskipTests -q
+REM Kiểm tra Java đã cài chưa
+java --version >nul 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    echo ❌ Chưa cài Java JDK!
+    echo    Tải tại: https://jdk.java.net/25/
+    echo    Cần cài JDK 25+ và thêm JAVA_HOME vào biến môi trường.
+    pause
+    exit /b 1
+)
+
+echo [1/2] Build project (dùng Maven Wrapper - không cần cài Maven)...
+call mvnw.cmd clean package -DskipTests -q
 if %ERRORLEVEL% NEQ 0 (
     echo ❌ Build thất bại! Xem log lỗi ở trên.
     pause
