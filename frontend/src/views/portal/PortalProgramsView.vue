@@ -283,19 +283,19 @@ onMounted(async () => {
     if (list.length) {
       programs.value = list.map(p => ({
         id: p.id,
-        ten: p.ten_chuong_trinh || p.ten || '',
-        danh_muc: p.danh_muc || 'Trợ cấp',
+        ten: p.tenChuongTrinh || p.ten || '',
+        danh_muc: p.danhMuc || 'Trợ cấp',
         icon: 'volunteer_activism',
         iconBg: 'bg-primary/10',
         iconColor: 'text-primary',
-        status: p.trang_thai === 'ACTIVE' ? 'OPEN' : p.trang_thai === 'UPCOMING' ? 'SOON' : 'CLOSED',
-        han_nop: p.ngay_ket_thuc ? new Date(p.ngay_ket_thuc).toLocaleDateString('vi-VN') : '—',
-        muc_ho_tro: p.muc_ho_tro || '—',
-        con_lai: p.ngay_ket_thuc ? Math.max(0, Math.ceil((new Date(p.ngay_ket_thuc) - Date.now()) / 86400000)) : 0,
-        so_ho_so: p.so_ho_so || 0,
-        mo_ta: p.mo_ta || '',
-        yeu_cau: p.yeu_cau || [],
-        tai_lieu: p.tai_lieu || [],
+        status: p.trangThai === 'OPEN' || p.trangThai === 'ACTIVE' ? 'OPEN' : p.trangThai === 'UPCOMING' || p.trangThai === 'SOON' ? 'SOON' : 'CLOSED',
+        han_nop: p.ngayKetThuc ? new Date(p.ngayKetThuc).toLocaleDateString('vi-VN') : '—',
+        muc_ho_tro: p.mucHoTro || p.nganSach ? (p.nganSach.toLocaleString() + 'đ') : 'Theo quy định',
+        con_lai: p.ngayKetThuc ? Math.max(0, Math.ceil((new Date(p.ngayKetThuc) - Date.now()) / 86400000)) : 0,
+        so_ho_so: p.soHoSo || 0,
+        mo_ta: p.moTa || '',
+        yeu_cau: p.yeuCau || ['Là công dân Việt Nam', 'Nằm trong đối tượng trợ cấp'],
+        tai_lieu: p.taiLieu || ['CCCD / CMND', 'Đơn xin trợ cấp', 'Sổ hộ khẩu'],
       }))
     }
   } catch {

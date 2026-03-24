@@ -14,6 +14,10 @@ import com.trocap.hoso.model.HoSoHoTro;
 import com.trocap.hoso.repository.HoSoRepository;
 import com.trocap.thongbao.model.ThongBao;
 import com.trocap.thongbao.repository.ThongBaoRepository;
+import com.trocap.nguonquy.model.NguonQuy;
+import com.trocap.nguonquy.repository.NguonQuyRepository;
+import com.trocap.doituong.model.NhomDoiTuong;
+import com.trocap.doituong.repository.NhomDoiTuongRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
@@ -39,18 +43,25 @@ public class DataSeeder implements CommandLineRunner {
     private final NguoiDungRepository nguoiDungRepository;
     private final ThongBaoRepository thongBaoRepository;
     private final PasswordEncoder passwordEncoder;
+    private final NguonQuyRepository nguonQuyRepository;
+    private final NhomDoiTuongRepository nhomDoiTuongRepository;
 
     @Override
     public void run(String... args) {
         // Luôn đảm bảo user mặc định có password chuẩn (chạy mỗi lần khởi động)
         seedUsers();
 
+        // Luôn seed funds nếu chưa có
+        List<NguonQuy> funds = seedFunds();
+        List<NhomDoiTuong> groups = seedBeneficiaryGroups();
+
         if (chuongTrinhRepository.count() > 0) {
             log.info("Dữ liệu nghiệp vụ đã tồn tại, bỏ qua seed.");
             return;
         }
         log.info("Bắt đầu khởi tạo dữ liệu mẫu...");
-        List<ChuongTrinhTruCap> programs = seedPrograms();
+        
+        List<ChuongTrinhTruCap> programs = seedPrograms(funds);
         List<DoiTuongHuongTruCap> beneficiaries = seedBeneficiaries(programs);
         seedTransactions(programs, beneficiaries);
         seedApplications(beneficiaries);
@@ -97,22 +108,51 @@ public class DataSeeder implements CommandLineRunner {
         }
     }
 
-    private List<ChuongTrinhTruCap> seedPrograms() {
+    private List<NguonQuy> seedFunds() {
+        if (nguonQuyRepository.count() > 0) {
+            return nguonQuyRepository.findAll();
+        }
+        List<NguonQuy> funds = List.of(
+            NguonQuy.builder().tenNguonQuy("Quỹ BTXH Tỉnh 2026").moTa("Ngân sách nhà nước phân bổ cho hoạt động bảo trợ năm 2026").tongNganSach(50000000000.0).daSuDung(12000000000.0).conLai(38000000000.0).loai("NGAN_SACH_NHA_NUOC").trangThai("ACTIVE").createdBy("admin").build(),
+            NguonQuy.builder().tenNguonQuy("Quỹ Hỗ trợ Đồng bào Lũ lụt").moTa("Quỹ từ thiện đóng góp từ các cá nhân tổ chức").tongNganSach(10000000000.0).daSuDung(8000000000.0).conLai(2000000000.0).loai("XA_HOI_HOA").trangThai("ACTIVE").createdBy("admin").build(),
+            NguonQuy.builder().tenNguonQuy("Quỹ Trẻ em Việt Nam").moTa("Tổ chức UNICEF tài trợ chi trả học phí").tongNganSach(20000000000.0).daSuDung(500000000.0).conLai(19500000000.0).loai("TAI_TRO").trangThai("ACTIVE").createdBy("admin").build()
+        );
+        return nguonQuyRepository.saveAll(funds);
+    }
+
+    private List<NhomDoiTuong> seedBeneficiaryGroups() {
+        if (nhomDoiTuongRepository.count() > 0) {
+            return nhomDoiTuongRepository.findAll();
+        }
+        List<NhomDoiTuong> groups = List.of(
+            NhomDoiTuong.builder().tenDoiTuong("Người cao tuổi cô đơn").moTa("Người trên 60 tuổi không nơi nương tựa").build(),
+            NhomDoiTuong.builder().tenDoiTuong("Người khuyết tật đặc biệt nặng").moTa("Người không tự phục vụ sinh hoạt cá nhân").build(),
+            NhomDoiTuong.builder().tenDoiTuong("Trẻ em mồ côi cả cha lẫn mẹ").moTa("Dưới 18 tuổi").build(),
+            NhomDoiTuong.builder().tenDoiTuong("Hộ nghèo / Cận nghèo").moTa("Sổ hộ nghèo có xác nhận").build()
+        );
+        return nhomDoiTuongRepository.saveAll(groups);
+    }
+
+    private List<ChuongTrinhTruCap> seedPrograms(List<NguonQuy> funds) {
+        String quyId1 = funds.isEmpty() ? null : funds.get(0).getId();
+        String quyId2 = funds.size() > 1 ? funds.get(1).getId() : null;
+        String quyId3 = funds.size() > 2 ? funds.get(2).getId() : null;
+
         List<ChuongTrinhTruCap> programs = List.of(
             ChuongTrinhTruCap.builder().tenChuongTrinh("Hỗ trợ Nhà ở cho hộ nghèo").moTa("Chương trình trợ cấp tiền thuê nhà và sửa chữa nhà ở cho hộ nghèo, cận nghèo trên toàn quốc.")
-                .nganSach(4_500_000_000.0).daChi(2_850_000_000.0).trangThai("OPEN")
+                .nganSach(4_500_000_000.0).daChi(2_850_000_000.0).trangThai("OPEN").nguonQuyId(quyId1)
                 .ngayBatDau(LocalDate.of(2024, 1, 15)).createdBy("admin").build(),
             ChuongTrinhTruCap.builder().tenChuongTrinh("Trợ cấp Giáo dục vùng cao").moTa("Hỗ trợ học phí, sách vở và dụng cụ học tập cho học sinh vùng cao, vùng đặc biệt khó khăn.")
-                .nganSach(2_800_000_000.0).daChi(1_920_000_000.0).trangThai("OPEN")
+                .nganSach(2_800_000_000.0).daChi(1_920_000_000.0).trangThai("OPEN").nguonQuyId(quyId3)
                 .ngayBatDau(LocalDate.of(2024, 3, 1)).createdBy("admin").build(),
             ChuongTrinhTruCap.builder().tenChuongTrinh("Bảo hiểm Y tế hộ nghèo").moTa("Cấp thẻ bảo hiểm y tế miễn phí và hỗ trợ chi phí khám chữa bệnh cho hộ nghèo.")
-                .nganSach(3_200_000_000.0).daChi(2_100_000_000.0).trangThai("OPEN")
+                .nganSach(3_200_000_000.0).daChi(2_100_000_000.0).trangThai("OPEN").nguonQuyId(quyId1)
                 .ngayBatDau(LocalDate.of(2024, 2, 1)).createdBy("admin").build(),
             ChuongTrinhTruCap.builder().tenChuongTrinh("Trợ cấp Người khuyết tật").moTa("Trợ cấp hàng tháng cho người khuyết tật nặng và đặc biệt nặng không có khả năng lao động.")
-                .nganSach(1_500_000_000.0).daChi(980_000_000.0).trangThai("OPEN")
+                .nganSach(1_500_000_000.0).daChi(980_000_000.0).trangThai("OPEN").nguonQuyId(quyId1)
                 .ngayBatDau(LocalDate.of(2024, 1, 1)).createdBy("admin").build(),
             ChuongTrinhTruCap.builder().tenChuongTrinh("Hỗ trợ Thất nghiệp Q1-2024").moTa("Chương trình hỗ trợ người lao động mất việc do doanh nghiệp giải thể, phá sản.")
-                .nganSach(800_000_000.0).daChi(750_000_000.0).trangThai("CLOSED")
+                .nganSach(800_000_000.0).daChi(750_000_000.0).trangThai("CLOSED").nguonQuyId(quyId2)
                 .ngayBatDau(LocalDate.of(2024, 1, 1)).ngayKetThuc(LocalDate.of(2024, 3, 31)).createdBy("admin").build()
         );
         return chuongTrinhRepository.saveAll(programs);

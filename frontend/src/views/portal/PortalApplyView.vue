@@ -304,18 +304,18 @@ const programs = ref(fallbackPrograms)
 async function loadPrograms() {
   loadingPrograms.value = true
   try {
-    const res = await programsApi.filter('ACTIVE')
-    const list = res.data.content || res.data || []
+    const res = await http.get('/programs', { params: { trangThai: 'ACTIVE', size: 100 } })
+    const list = res.data?.content || res.data || []
     if (list.length) {
       programs.value = list.map(p => ({
         id: p.id,
-        ten: p.ten_chuong_trinh || p.ten,
-        han_nop: p.ngay_ket_thuc ? new Date(p.ngay_ket_thuc).toLocaleDateString('vi-VN') : '—',
-        mo_ta: p.mo_ta || '',
+        ten: p.tenChuongTrinh || p.ten_chuong_trinh || p.ten,
+        han_nop: p.ngayKetThuc || p.ngay_ket_thuc ? new Date(p.ngayKetThuc || p.ngay_ket_thuc).toLocaleDateString('vi-VN') : '—',
+        mo_ta: p.moTa || p.mo_ta || '',
       }))
     }
-  } catch {
-    // Giữ fallback
+  } catch (err) {
+    console.error(err)
   } finally {
     loadingPrograms.value = false
   }

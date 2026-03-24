@@ -270,8 +270,9 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useUI } from '../stores/ui'
+import { programsApi } from '../api/programs'
 
 const ui = useUI()
 
@@ -287,19 +288,49 @@ const errors        = ref({})
 const defaultForm = { ten_chuong_trinh:'', nguon_quy_id:'', mo_ta:'', ngay_bat_dau:'', ngay_ket_thuc:'', trang_thai:'ACTIVE' }
 const form = ref({ ...defaultForm })
 
-const funds = ref([
-  { id:1, ten_nguon_quy:'Quỹ BTXH Tỉnh 2026',      ngan_sach_con_lai:1800000000, tong_ngan_sach:5000000000 },
-  { id:2, ten_nguon_quy:'Quỹ Hỗ trợ Quốc tế',   ngan_sach_con_lai:1500000000, tong_ngan_sach:2000000000 },
-  { id:3, ten_nguon_quy:'Quỹ Từ thiện Cộng đồng', ngan_sach_con_lai:120000000,  tong_ngan_sach:800000000  },
-])
+const funds = ref([])
+const programs = ref([])
 
-const programs = ref([
-  { id:1, ten_chuong_trinh:'Hỗ trợ người cao tuổi',      nguon_quy_id:1, mo_ta:'Hỗ trợ hàng tháng cho người trên 60 tuổi không có người chăm sóc', ngay_bat_dau:'2026-01-01', ngay_ket_thuc:'2026-12-31', trang_thai:'ACTIVE',   so_ho_so:145, ho_so_duyet:98,  ho_so_cho:30 },
-  { id:2, ten_chuong_trinh:'Hỗ trợ người khuyết tật',  nguon_quy_id:1, mo_ta:'Hỗ trợ chi phí phục hồi chức năng và hòa nhập cộng đồng',  ngay_bat_dau:'2026-01-15', ngay_ket_thuc:'2026-06-30', trang_thai:'ACTIVE',   so_ho_so:73,  ho_so_duyet:50,  ho_so_cho:15 },
-  { id:3, ten_chuong_trinh:'Hỗ trợ trẻ em có hoàn cảnh', nguon_quy_id:2, mo_ta:'Chi trả học phí và chi phí sinh hoạt cho trẻ em có hoàn cảnh khó khăn', ngay_bat_dau:'2025-09-01', ngay_ket_thuc:'2026-08-31', trang_thai:'ACTIVE',   so_ho_so:210, ho_so_duyet:180, ho_so_cho:20 },
-  { id:4, ten_chuong_trinh:'Hỗ trợ hộ nghèo 2025',       nguon_quy_id:3, mo_ta:'Hỗ trợ lương thực và nhu yếu phẩm cho hộ nghèo',  ngay_bat_dau:'2025-01-01', ngay_ket_thuc:'2025-12-31', trang_thai:'ENDED',    so_ho_so:320, ho_so_duyet:295, ho_so_cho:0  },
-  { id:5, ten_chuong_trinh:'Hỗ trợ phụ nữ đơn thân',   nguon_quy_id:1, mo_ta:'Hỗ trợ kinh phí nuôi con cho phụ nữ đơn thân có hoàn cảnh khó khăn', ngay_bat_dau:'2026-03-01', ngay_ket_thuc:'2026-09-30', trang_thai:'INACTIVE', so_ho_so:18,  ho_so_duyet:10,  ho_so_cho:8  },
-])
+onMounted(async () => {
+  await fetchData()
+})
+
+async function fetchData() {
+  try {
+    const [fundRes, progRes] = await Promise.all([
+      programsApi.getFunds(),
+      programsApi.getAll()
+    ])
+    
+    // Map Funds
+    const fd = fundRes.data?.content || fundRes.data || []
+    funds.value = fd.map(f => ({
+      ...f,
+      id: f.id,
+      ten_nguon_quy: f.tenNguonQuy || '',
+      ngan_sach_con_lai: f.conLai || 0,
+      tong_ngan_sach: f.tongNganSach || 0
+    }))
+
+    // Map Programs
+    const pr = progRes.data?.content || progRes.data || []
+    programs.value = pr.map(p => ({
+      ...p,
+      id: p.id,
+      ten_chuong_trinh: p.tenChuongTrinh || '',
+      nguon_quy_id: p.nguonQuyId,
+      mo_ta: p.moTa || '',
+      ngay_bat_dau: p.ngayBatDau ? p.ngayBatDau.split('T')[0] : '',
+      ngay_ket_thuc: p.ngayKetThuc ? p.ngayKetThuc.split('T')[0] : '',
+      trang_thai: p.trangThai || 'ACTIVE',
+      so_ho_so: p.soHoSo || 0,
+      ho_so_duyet: p.hoSoDuyet || 0,
+      ho_so_cho: p.hoSoCho || 0
+    }))
+  } catch (error) {
+    ui.showWarning?.('Không thể tải dữ liệu từ máy chủ') || alert('Lỗi tải dữ liệu')
+  }
+}
 
 const stats = computed(() => {
   const act  = programs.value.filter(p => p.trang_thai === 'ACTIVE').length
@@ -317,7 +348,7 @@ const filteredPrograms = computed(() => {
   let list = programs.value
   if (search.value) list = list.filter(p => p.ten_chuong_trinh.toLowerCase().includes(search.value.toLowerCase()))
   if (filterStatus.value) list = list.filter(p => p.trang_thai === filterStatus.value)
-  if (filterFund.value)   list = list.filter(p => p.nguon_quy_id === Number(filterFund.value))
+  if (filterFund.value)   list = list.filter(p => p.nguon_quy_id === filterFund.value)
   return list
 })
 
@@ -333,16 +364,19 @@ function getFundName(id)    { return funds.value.find(f => f.id === id)?.ten_ngu
 function getFundRemain(id)  { return funds.value.find(f => f.id === id)?.ngan_sach_con_lai || 0 }
 function getFundUsedPct(id) {
   const f = funds.value.find(x => x.id === id)
-  if (!f) return 0
+  if (!f || !f.tong_ngan_sach) return 0
   return Math.round((1 - f.ngan_sach_con_lai / f.tong_ngan_sach) * 100)
 }
 
 function daysProgress(p) {
+  if (!p.ngay_bat_dau || !p.ngay_ket_thuc) return 0
   const total = new Date(p.ngay_ket_thuc) - new Date(p.ngay_bat_dau)
-  const done  = Date.now() - new Date(p.ngay_bat_dau)
-  return Math.min(100, Math.max(0, Math.round(done / total * 100)))
+  if (total <= 0) return 0
+  const remain = new Date(p.ngay_ket_thuc) - Date.now()
+  return Math.min(100, Math.max(0, Math.round((remain / total) * 100)))
 }
 function daysLeft(p) {
+  if (!p.ngay_ket_thuc) return '—'
   const diff = new Date(p.ngay_ket_thuc) - Date.now()
   if (diff <= 0) return 'Đã kết thúc'
   const d = Math.ceil(diff / 86400000)
@@ -352,7 +386,7 @@ function formatDate(d)  { if (!d) return '—'; return new Date(d).toLocaleDateS
 function formatVnd(v)   {
   if (!v && v !== 0) return '—'
   if (v >= 1e9) return (v / 1e9).toFixed(1) + ' Tỷ'
-  if (v >= 1e6) return (v / 1e6).toFixed(0) + 'Triệu'
+  if (v >= 1e6) return (v / 1e6).toFixed(0) + ' Triệu'
   return v.toLocaleString('vi-VN') + 'đ'
 }
 
@@ -363,7 +397,7 @@ async function exportData() {
     await exportApi.download('programs')
     ui.showSuccess('Đã xuất dữ liệu thành công!')
   } catch (e) {
-    ui.showError?.('Xuất dữ liệu thất bại!') || alert('Xuất dữ liệu thất bại: ' + e.message)
+    ui.showWarning?.('Xuất dữ liệu thất bại!') || alert('Xuất dữ liệu thất bại: ' + e.message)
   }
 }
 
@@ -371,27 +405,58 @@ function openCreate() { editProgram.value = null; form.value = { ...defaultForm 
 function openEdit(p)  { editProgram.value = p;   form.value = { ...p };           errors.value = {}; showModal.value = true }
 function openDetail(p){ detailProgram.value = p }
 
-function toggleStatus(p) {
-  p.trang_thai = p.trang_thai === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
-  ui.showSuccess('Đã cập nhật trạng thái chương trình!')
+async function toggleStatus(p) {
+  const newStatus = p.trang_thai === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
+  try {
+    const payload = {
+      tenChuongTrinh: p.ten_chuong_trinh,
+      nguonQuyId: p.nguon_quy_id,
+      moTa: p.mo_ta,
+      ngayBatDau: p.ngay_bat_dau,
+      ngayKetThuc: p.ngay_ket_thuc,
+      trangThai: newStatus
+    }
+    await programsApi.update(p.id, payload)
+    p.trang_thai = newStatus
+    ui.showSuccess('Đã cập nhật trạng thái chương trình!')
+  } catch(e) {
+    ui.showWarning?.('Không thể cập nhật trạng thái')
+  }
 }
 
-function saveProgram() {
+async function saveProgram() {
   errors.value = {}
   if (!form.value.ten_chuong_trinh?.trim())  { errors.value.ten  = 'Vui lòng nhập tên chương trình'; return }
   if (!form.value.nguon_quy_id)              { errors.value.fund = 'Vui lòng chọn nguồn quỹ'; return }
+  if (!form.value.ngay_bat_dau)              { errors.value.date = 'Vui lòng chọn ngày bắt đầu'; return }
+  if (!form.value.ngay_ket_thuc)             { errors.value.date = 'Vui lòng chọn ngày kết thúc'; return }
+  
   saving.value = true
-  setTimeout(() => {
+  
+  const payload = {
+    tenChuongTrinh: form.value.ten_chuong_trinh.trim(),
+    nguonQuyId: form.value.nguon_quy_id,
+    moTa: form.value.mo_ta,
+    ngayBatDau: form.value.ngay_bat_dau,
+    ngayKetThuc: form.value.ngay_ket_thuc,
+    trangThai: form.value.trang_thai
+  }
+
+  try {
     if (editProgram.value) {
-      const idx = programs.value.findIndex(p => p.id === editProgram.value.id)
-      if (idx >= 0) Object.assign(programs.value[idx], form.value)
+      await programsApi.update(editProgram.value.id, payload)
       ui.showSuccess('Cập nhật chương trình thành công!')
     } else {
-      programs.value.unshift({ id: Date.now(), ...form.value, nguon_quy_id: Number(form.value.nguon_quy_id), so_ho_so:0, ho_so_duyet:0, ho_so_cho:0 })
+      await programsApi.create(payload)
       ui.showSuccess('Tạo chương trình thành công!')
     }
-    saving.value = false
+    await fetchData()
     showModal.value = false
-  }, 600)
+  } catch (err) {
+    const msg = err.response?.data?.message || err.message
+    ui.showWarning?.('Lỗi lưu chương trình: ' + msg) || alert('Lỗi: ' + msg)
+  } finally {
+    saving.value = false
+  }
 }
 </script>

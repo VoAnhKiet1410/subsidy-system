@@ -291,9 +291,9 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useUI } from '../stores/ui'
-import http from '../api/http'
+import { programsApi } from '../api/programs'
 
 const ui = useUI()
 
@@ -309,11 +309,40 @@ const errors    = ref({})
 const defaultForm = { ten_nguon_quy:'', nguon_kinh_phi:'Ngân sách nhà nước', tong_ngan_sach:'', ngan_sach_con_lai:'', mo_ta:'' }
 const form = ref({ ...defaultForm })
 
-const funds = ref([
-  { id:1, ten_nguon_quy:'Quỹ BTXH Tỉnh 2026',   nguon_kinh_phi:'Ngân sách nhà nước', tong_ngan_sach:5000000000, ngan_sach_con_lai:1800000000, so_chuong_trinh:3, mo_ta:'Ngân sách nhà nước cấp cho chương trình bảo trợ xã hội' },
-  { id:2, ten_nguon_quy:'Quỹ Hỗ trợ Quốc tế',   nguon_kinh_phi:'Tài trợ quốc tế',   tong_ngan_sach:2000000000, ngan_sach_con_lai:1500000000, so_chuong_trinh:1, mo_ta:'Nguồn viện trợ từ tổ chức UNICEF' },
-  { id:3, ten_nguon_quy:'Quỹ Từ thiện Cộng đồng',nguon_kinh_phi:'Quyên góp, từ thiện',tong_ngan_sach:800000000,  ngan_sach_con_lai:120000000,  so_chuong_trinh:2, mo_ta:'Thu từ các chiến dịch quyên góp' },
-])
+const funds = ref([])
+
+onMounted(async () => {
+  await fetchData()
+})
+
+async function fetchData() {
+  try {
+    const res = await programsApi.getFunds()
+    const fd = res.data?.content || res.data || []
+    funds.value = fd.map(f => ({
+      ...f,
+      id: f.id,
+      ten_nguon_quy: f.tenNguonQuy || '',
+      nguon_kinh_phi: f.loai === 'XA_HOI_HOA' ? 'Quyên góp, từ thiện' : f.loai === 'TAI_TRO' ? 'Tài trợ quốc tế' : 'Ngân sách nhà nước',
+      tong_ngan_sach: f.tongNganSach || 0,
+      ngan_sach_con_lai: f.conLai || 0,
+      mo_ta: f.moTa || '',
+      so_chuong_trinh: 0
+    }))
+    
+    try {
+      const pRes = await programsApi.getAll()
+      const progs = pRes.data?.content || pRes.data || []
+      funds.value.forEach(f => {
+        f.so_chuong_trinh = progs.filter(p => p.nguonQuyId === f.id).length
+      })
+    } catch(e) {}
+    
+  } catch (error) {
+    ui.showWarning?.('Không thể tải dữ liệu từ máy chủ') || alert('Lỗi tải dữ liệu')
+  }
+}
+
 
 const stats = computed(() => {
   const total   = funds.value.reduce((s,f) => s + f.tong_ngan_sach, 0)
@@ -346,8 +375,8 @@ const donutSegments = computed(() => {
   })
 })
 
-function usedPct(f) { return Math.round((1 - f.ngan_sach_con_lai / f.tong_ngan_sach) * 100) }
-function formatPct(f) { return Math.round((f.ngan_sach_con_lai / f.tong_ngan_sach) * 100) }
+function usedPct(f) { return !f.tong_ngan_sach ? 0 : Math.round((1 - f.ngan_sach_con_lai / f.tong_ngan_sach) * 100) }
+function formatPct(f) { return !f.tong_ngan_sach ? 0 : Math.round((f.ngan_sach_con_lai / f.tong_ngan_sach) * 100) }
 function formatVnd(v) {
   if (!v && v !== 0) return '—'
   if (v >= 1e9) return (v / 1e9).toFixed(1) + ' Tỷ'
@@ -368,22 +397,40 @@ async function exportCsv() {
   }
 }
 
-function saveFund() {
+async function saveFund() {
   errors.value = {}
   if (!form.value.ten_nguon_quy?.trim()) { errors.value.ten = 'Vui lòng nhập tên nguồn quỹ'; return }
   if (!form.value.tong_ngan_sach || form.value.tong_ngan_sach <= 0) { errors.value.budget = 'Tổng ngân sách phải > 0'; return }
   saving.value = true
-  setTimeout(() => {
+  
+  const payload = {
+    tenNguonQuy: form.value.ten_nguon_quy.trim(),
+    tongNganSach: Number(form.value.tong_ngan_sach),
+    daSuDung: 0, 
+    moTa: form.value.mo_ta,
+    loai: form.value.nguon_kinh_phi === 'Quyên góp, từ thiện' ? 'XA_HOI_HOA' : form.value.nguon_kinh_phi === 'Tài trợ quốc tế' ? 'TAI_TRO' : 'NGAN_SACH_NHA_NUOC',
+  }
+
+  try {
     if (editFund.value) {
-      const idx = funds.value.findIndex(f => f.id === editFund.value.id)
-      if (idx >= 0) Object.assign(funds.value[idx], form.value)
+      if (form.value.ngan_sach_con_lai !== '' && form.value.ngan_sach_con_lai != null) {
+         payload.daSuDung = payload.tongNganSach - Number(form.value.ngan_sach_con_lai)
+      }
+      await programsApi.updateFund(editFund.value.id, payload)
       ui.showSuccess('Cập nhật nguồn quỹ thành công!')
     } else {
-      funds.value.push({ id: Date.now(), ...form.value, tong_ngan_sach: Number(form.value.tong_ngan_sach), ngan_sach_con_lai: Number(form.value.ngan_sach_con_lai || form.value.tong_ngan_sach), so_chuong_trinh: 0 })
+      const conLai = form.value.ngan_sach_con_lai ? Number(form.value.ngan_sach_con_lai) : payload.tongNganSach
+      payload.daSuDung = payload.tongNganSach - conLai
+      await programsApi.createFund(payload)
       ui.showSuccess('Thêm nguồn quỹ thành công!')
     }
-    saving.value = false
+    await fetchData()
     showModal.value = false
-  }, 600)
+  } catch (err) {
+    const msg = err.response?.data?.message || err.message
+    ui.showWarning?.('Lỗi: ' + msg) || alert('Lỗi: ' + msg)
+  } finally {
+    saving.value = false
+  }
 }
 </script>

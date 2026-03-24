@@ -124,6 +124,7 @@ import { ref, computed, onMounted } from 'vue'
 import { authStore } from '../../stores/auth'
 import { applicationsApi } from '../../api/applications'
 import { programsApi } from '../../api/programs'
+import http from '../../api/http'
 
 const displayName = computed(() => {
   const u = authStore.user
@@ -158,46 +159,61 @@ const fallbackPrograms = [
 onMounted(async () => {
   loading.value = true
   try {
-    // Gọi API song song
-    const [appsRes, statsRes, progsRes] = await Promise.allSettled([
+    // Lấy toàn bộ chương trình trước để join dữ liệu
+    const pRes = await http.get('/programs', { params: { size: 1000 } }).catch(() => ({ data: { content: fallbackPrograms } }))
+    const allProgs = pRes.data?.content || pRes.data || fallbackPrograms
+
+    const [appsRes, statsRes] = await Promise.allSettled([
       applicationsApi.getMyApplications(0, 3),
       applicationsApi.getStats(),
-      programsApi.filter('ACTIVE'),
     ])
 
     // Hồ sơ gần đây
-    if (appsRes.status === 'fulfilled') {
-      recentApps.value = (appsRes.value.data.content || appsRes.value.data || []).slice(0, 3)
+    if (appsRes.status === 'fulfilled' && appsRes.value.data?.content?.length) {
+      const list = appsRes.value.data.content
+      recentApps.value = list.slice(0, 3).map(a => {
+        const prog = allProgs.find(p => p.id === a.chuongTrinhId)
+        return {
+          ...a,
+          id: a.id || a.maHoSo || a.code,
+          trang_thai: a.trangThai || 'PENDING',
+          ten_chuong_trinh: prog ? prog.tenChuongTrinh : (a.chuongTrinhId ? `Chương trình ID:${a.chuongTrinhId}` : 'Không xác định'),
+          ngay_nop: a.ngayNopHoSo || a.createdAt || Date.now(),
+          steps: [1, 2, 3, 4],
+          step_done: a.trangThai === 'APPROVED' || a.trangThai === 'PAID' ? 4 : (a.trangThai === 'UNDER_REVIEW' ? 2 : 1)
+        }
+      })
     } else {
       recentApps.value = fallbackApps
     }
 
     // Stats
-    if (statsRes.status === 'fulfilled') {
+    if (statsRes.status === 'fulfilled' && statsRes.value.data) {
       const s = statsRes.value.data
       quickStats.value[0].value = s.total || 0
-      quickStats.value[1].value = s.pending || 0
-      quickStats.value[2].value = s.approved || 0
+      quickStats.value[1].value = s.pending || s.SUBMITTED || s.UNDER_REVIEW || 0
+      quickStats.value[2].value = s.approved || s.APPROVED || s.PAID || 0
     } else {
       quickStats.value[0].value = recentApps.value.length
-      quickStats.value[1].value = recentApps.value.filter(a => a.trang_thai === 'PENDING').length
+      quickStats.value[1].value = recentApps.value.filter(a => a.trang_thai === 'PENDING' || a.trang_thai === 'SUBMITTED').length
       quickStats.value[2].value = recentApps.value.filter(a => a.trang_thai === 'APPROVED').length
     }
 
     // Chương trình đang mở
-    if (progsRes.status === 'fulfilled') {
-      const list = progsRes.value.data.content || progsRes.value.data || []
-      openPrograms.value = list.slice(0, 4).map(p => ({
+    const openProgsOrigin = allProgs.filter(p => p.trangThai === 'ACTIVE' || p.trang_thai === 'ACTIVE' || p.trangThai === 'OPEN')
+    if (openProgsOrigin.length) {
+      openPrograms.value = openProgsOrigin.slice(0, 4).map(p => ({
         id: p.id,
-        ten: p.ten_chuong_trinh || p.ten,
-        han_nop: p.ngay_ket_thuc ? new Date(p.ngay_ket_thuc).toLocaleDateString('vi-VN') : '—',
-        mo_ta: p.mo_ta || '',
+        ten: p.tenChuongTrinh || p.ten_chuong_trinh || p.ten,
+        han_nop: p.ngayKetThuc || p.ngay_ket_thuc ? new Date(p.ngayKetThuc || p.ngay_ket_thuc).toLocaleDateString('vi-VN') : '—',
+        mo_ta: p.moTa || p.mo_ta || '',
       }))
     } else {
       openPrograms.value = fallbackPrograms
     }
-  } catch {
+  } catch (err) {
     // Fallback toàn bộ
+    console.error(err)
     recentApps.value = fallbackApps
     openPrograms.value = fallbackPrograms
     quickStats.value[0].value = 3
