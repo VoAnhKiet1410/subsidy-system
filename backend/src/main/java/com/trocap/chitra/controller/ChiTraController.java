@@ -17,6 +17,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/payments")
@@ -51,6 +52,14 @@ public class ChiTraController {
     @Operation(summary = "Chi tiết giao dịch chi trả")
     public ResponseEntity<ApiResponse<ChiTraTruCap>> findById(@PathVariable String id) {
         return ResponseEntity.ok(ApiResponse.success(chiTraService.findById(id)));
+    }
+
+    // ─── GET chi tiết theo hồ sơ ────────────────────────────────────
+    @GetMapping("/application/{hoSoId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ACCOUNTANT', 'OFFICER')")
+    @Operation(summary = "Danh sách chi trả theo hồ sơ")
+    public ResponseEntity<ApiResponse<List<ChiTraTruCap>>> findByHoSoId(@PathVariable String hoSoId) {
+        return ResponseEntity.ok(ApiResponse.success(chiTraService.findByHoSoId(hoSoId)));
     }
 
     // ─── POST tạo chi trả (PENDING) ─────────────────────────────────

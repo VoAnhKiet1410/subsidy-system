@@ -22,7 +22,13 @@ export const applicationsApi = {
   triggerAiReview: (hoSoId) => http.post(`/applications/${hoSoId}/ai-review`),
 
   // Portal — hồ sơ của user
+  getMyStats:        () => http.get('/applications/stats/my'),
   getMyApplications: (page = 0, size = 20) => http.get('/applications/my', { params: { page, size } }),
+
+  // chi_tra
+  getPaymentsByApplication: (id) => http.get(`/payments/application/${id}`),
+  createPayment:     (data) => http.post('/payments', data),
+  updatePaymentStatus: (id, data) => http.patch(`/payments/${id}/status`, data),
 }
 
 // Backward-compatible alias

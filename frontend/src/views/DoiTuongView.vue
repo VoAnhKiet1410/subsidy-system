@@ -161,15 +161,9 @@ onMounted(async () => {
       color: colorPalette[idx % colorPalette.length], 
       icon: iconList[idx % iconList.length] 
     }))
-  } catch {
-    items.value = [
-      { id:1, ten_doi_tuong:'Người cao tuổi', mo_ta:'Người từ 60 tuổi trở lên không có người chăm sóc', trang_thai:'ACTIVE', ho_so_count:145, created_at: new Date(Date.now()-86400000*60).toISOString(), color: colorPalette[0], icon: iconList[0] },
-      { id:2, ten_doi_tuong:'Trẻ em khó khăn', mo_ta:'Trẻ dưới 16 tuổi thuộc hộ nghèo hoặc cận nghèo', trang_thai:'ACTIVE', ho_so_count:89, created_at: new Date(Date.now()-86400000*45).toISOString(), color: colorPalette[1], icon: iconList[1] },
-      { id:3, ten_doi_tuong:'Người khuyết tật', mo_ta:'Người bị khuyết tật thể chất hoặc tinh thần', trang_thai:'ACTIVE', ho_so_count:234, created_at: new Date(Date.now()-86400000*30).toISOString(), color: colorPalette[2], icon: iconList[2] },
-      { id:4, ten_doi_tuong:'Thiên tai, dịch bệnh', mo_ta:'Hộ dân bị ảnh hưởng bởi thiên tai hoặc dịch bệnh', trang_thai:'ACTIVE', ho_so_count:512, created_at: new Date(Date.now()-86400000*20).toISOString(), color: colorPalette[3], icon: iconList[3] },
-      { id:5, ten_doi_tuong:'Nông dân mất mùa', mo_ta:'Hộ sản xuất nông nghiệp bị mất mùa do thiên tai', trang_thai:'ACTIVE', ho_so_count:178, created_at: new Date(Date.now()-86400000*10).toISOString(), color: colorPalette[4], icon: iconList[4] },
-      { id:6, ten_doi_tuong:'Hộ nghèo đơn thân', mo_ta:'Hộ gia đình một thành viên thuộc diện hộ nghèo', trang_thai:'INACTIVE', ho_so_count:67, created_at: new Date(Date.now()-86400000*5).toISOString(), color: colorPalette[5], icon: iconList[5] },
-    ]
+  } catch (e) {
+    console.error('Lỗi tải đối tượng:', e)
+    ui.showError('Không thể tải danh sách đối tượng.')
   } finally { loading.value = false }
 })
 
@@ -178,9 +172,17 @@ function openEdit(item) { editItem.value=item; mf.value={...item}; modalError.va
 
 async function toggleStatus(item) {
   const newStatus = item.trang_thai === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
-  try { await http.put(`/beneficiary-groups/${item.id}`, { tenDoiTuong: item.ten_doi_tuong, moTa: item.mo_ta }) } catch {}
-  item.trang_thai = newStatus
-  ui.showSuccess(newStatus === 'ACTIVE' ? 'Đã kích hoạt!' : 'Đã tạm ngưng!')
+  try {
+    await http.put(`/beneficiary-groups/${item.id}`, {
+      tenDoiTuong: item.ten_doi_tuong,
+      moTa: item.mo_ta,
+      trangThai: newStatus
+    })
+    item.trang_thai = newStatus
+    ui.showSuccess(newStatus === 'ACTIVE' ? 'Đã kích hoạt!' : 'Đã tạm ngưng!')
+  } catch (e) {
+    ui.showError('Cập nhật trạng thái thất bại: ' + (e.response?.data?.message || e.message))
+  }
 }
 
 function confirmDel(item) {

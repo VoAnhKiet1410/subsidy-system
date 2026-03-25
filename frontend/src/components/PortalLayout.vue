@@ -48,15 +48,15 @@
                 <!-- List -->
                 <div class="max-h-72 overflow-y-auto divide-y divide-slate-50">
                   <div v-for="n in notifications" :key="n.id" @click="readNotif(n)"
-                    :class="['flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 transition-colors', !n.read && 'bg-primary/3']">
+                    :class="['flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 transition-colors', !n.daDoc && 'bg-primary/3']">
                     <div :class="['w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5', n.iconBg]">
                       <span class="material-symbols-outlined text-sm" :class="n.iconColor" style="font-variation-settings:'FILL' 1;">{{ n.icon }}</span>
                     </div>
                     <div class="flex-1 min-w-0">
-                      <p :class="['text-sm leading-snug', n.read ? 'text-slate-600' : 'text-slate-800 font-semibold']">{{ n.message }}</p>
+                      <p :class="['text-sm leading-snug', n.daDoc ? 'text-slate-600' : 'text-slate-800 font-semibold']">{{ n.message }}</p>
                       <p class="text-[10px] text-slate-400 mt-0.5">{{ n.time }}</p>
                     </div>
-                    <div v-if="!n.read" class="w-2 h-2 bg-primary rounded-full flex-shrink-0 mt-2"></div>
+                    <div v-if="!n.daDoc" class="w-2 h-2 bg-primary rounded-full flex-shrink-0 mt-2"></div>
                   </div>
                 </div>
                 <!-- Footer -->
@@ -183,20 +183,69 @@ function handleLogout() {
 }
 
 // ── Notifications ─────────────────────────────────────
-const notifications = ref([
-  { id:1, message:'Hồ sơ #HS-1001 của bạn đã được phê duyệt!',       icon:'check_circle',  iconBg:'bg-emerald-50', iconColor:'text-emerald-500', time:'10 phút trước',  read:false },
-  { id:2, message:'Hồ sơ #HS-1002 đang được xét duyệt.',              icon:'manage_search', iconBg:'bg-blue-50',    iconColor:'text-blue-500',    time:'2 giờ trước',    read:false },
-  { id:3, message:'Chương trình "Hỗ trợ trẻ em" sắp hết hạn nộp.',   icon:'schedule',      iconBg:'bg-amber-50',   iconColor:'text-amber-500',   time:'Hôm qua',        read:true  },
-  { id:4, message:'Tài khoản của bạn đã được xác minh thành công.',   icon:'verified_user', iconBg:'bg-primary/10', iconColor:'text-primary',     time:'2 ngày trước',   read:true  },
-])
-const unreadCount = computed(() => notifications.value.filter(n => !n.read).length)
+import http from '../api/http'
 
-function readNotif(n) {
-  n.read = true
-  showNotif.value = false
+const notifications = ref([])
+const unreadCount = computed(() => notifications.value.filter(n => !n.daDoc).length)
+
+// Icon mapping theo loại thông báo
+function notifIcon(n) {
+  const loai = n.loai || 'INFO'
+  const entity = n.entityType || ''
+  if (loai === 'SUCCESS' || entity === 'APPLICATION') return { icon: 'check_circle',  iconBg: 'bg-emerald-50', iconColor: 'text-emerald-500' }
+  if (loai === 'ERROR')   return { icon: 'cancel',        iconBg: 'bg-red-50',      iconColor: 'text-red-500'     }
+  if (loai === 'WARNING') return { icon: 'warning',       iconBg: 'bg-amber-50',    iconColor: 'text-amber-500'   }
+  if (entity === 'PAYMENT') return { icon: 'payments',    iconBg: 'bg-teal-50',     iconColor: 'text-teal-500'    }
+  return { icon: 'notifications', iconBg: 'bg-primary/10', iconColor: 'text-primary' }
 }
-function markAllRead() {
-  notifications.value.forEach(n => n.read = true)
+
+function formatTime(dt) {
+  if (!dt) return ''
+  const d = new Date(dt)
+  const now = new Date()
+  const diff = Math.floor((now - d) / 1000)
+  if (diff < 60) return 'Vừa xong'
+  if (diff < 3600) return `${Math.floor(diff / 60)} phút trước`
+  if (diff < 86400) return `${Math.floor(diff / 3600)} giờ trước`
+  if (diff < 172800) return 'Hôm qua'
+  return d.toLocaleDateString('vi-VN')
+}
+
+async function loadNotifications() {
+  try {
+    const res = await http.get('/notifications', { params: { size: 10 } })
+    const list = res.data?.content || (Array.isArray(res.data) ? res.data : [])
+    notifications.value = list.map(n => ({
+      ...n,
+      message: n.tieuDe || n.noiDung || 'Thông báo mới',
+      time: formatTime(n.createdAt),
+      ...notifIcon(n),
+    }))
+  } catch {
+    notifications.value = []
+  }
+}
+
+onMounted(loadNotifications)
+
+async function readNotif(n) {
+  if (!n.daDoc) {
+    try {
+      await http.patch(`/notifications/${n.id}/read`)
+      n.daDoc = true
+    } catch { n.daDoc = true }
+  }
+  showNotif.value = false
+  if (n.link) router.push(n.link)
+}
+
+async function markAllRead() {
+  try {
+    await http.patch('/notifications/read-all')
+    notifications.value.forEach(n => n.daDoc = true)
+  } catch {
+    notifications.value.forEach(n => n.daDoc = true)
+  }
 }
 
 // ── Nav ───────────────────────────────────────────────

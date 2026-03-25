@@ -6,7 +6,7 @@ import com.trocap.chuongtrinh.repository.ChuongTrinhRepository;
 import com.trocap.common.exception.BadRequestException;
 import com.trocap.common.exception.ResourceNotFoundException;
 import com.trocap.common.service.CounterService;
-import com.trocap.doituong.repository.DoiTuongRepository;
+import com.trocap.doituong.repository.NhomDoiTuongRepository;
 import com.trocap.hoso.dto.HoSoRequest;
 import com.trocap.hoso.dto.RejectRequest;
 import com.trocap.hoso.model.HoSoHoTro;
@@ -26,7 +26,7 @@ public class HoSoService {
 
     private final HoSoRepository hoSoRepository;
     private final NguoiDungRepository nguoiDungRepository;
-    private final DoiTuongRepository doiTuongRepository;
+    private final NhomDoiTuongRepository nhomDoiTuongRepository;
     private final ChuongTrinhRepository chuongTrinhRepository;
     private final ThongBaoService thongBaoService;
     private final CounterService counterService;
@@ -69,6 +69,21 @@ public class HoSoService {
     // ─── Lọc theo khoảng ngày nộp ───────────────────────────────────
     public Page<HoSoHoTro> findByNgayNopRange(LocalDate from, LocalDate to, Pageable pageable) {
         return hoSoRepository.findByNgayNopRange(from, to, pageable);
+    }
+
+    // ─── Lấy thống kê cá nhân ─────────────────────────────────────────
+    public java.util.Map<String, Long> getPersonalStats(String username) {
+        NguoiDung user = nguoiDungRepository.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng: " + username));
+
+        java.util.Map<String, Long> stats = new java.util.HashMap<>();
+        stats.put("total", hoSoRepository.countByNguoiDungId(user.getId()));
+        stats.put("pending", hoSoRepository.countByNguoiDungIdAndTrangThai(user.getId(), "UNDER_REVIEW") 
+                           + hoSoRepository.countByNguoiDungIdAndTrangThai(user.getId(), "SUBMITTED"));
+        stats.put("approved", hoSoRepository.countByNguoiDungIdAndTrangThai(user.getId(), "APPROVED")
+                            + hoSoRepository.countByNguoiDungIdAndTrangThai(user.getId(), "PAID"));
+        
+        return stats;
     }
 
     // ─── Tạo hồ sơ mới (trạng thái DRAFT) ──────────────────────────
@@ -255,8 +270,8 @@ public class HoSoService {
     // ─── Helper: validate references ────────────────────────────────
     private void validateReferences(HoSoRequest request) {
         if (request.getDoiTuongId() != null
-                && !doiTuongRepository.existsById(request.getDoiTuongId())) {
-            throw new BadRequestException("Đối tượng hưởng trợ cấp không tồn tại: " + request.getDoiTuongId());
+                && !nhomDoiTuongRepository.existsById(request.getDoiTuongId())) {
+            throw new BadRequestException("Nhóm đối tượng hưởng trợ cấp không tồn tại: " + request.getDoiTuongId());
         }
         if (request.getChuongTrinhId() != null
                 && !chuongTrinhRepository.existsById(request.getChuongTrinhId())) {

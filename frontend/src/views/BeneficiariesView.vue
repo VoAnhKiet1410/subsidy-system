@@ -214,9 +214,25 @@
                   </td>
                   <!-- Trạng thái chi trả -->
                   <td class="px-4 py-4">
-                    <span :class="['px-2 py-1 rounded-lg text-[10px] font-bold', payStatusStyle(app.trang_thai_chi_tra)]">
-                      {{ payStatusLabel(app.trang_thai_chi_tra) }}
-                    </span>
+                    <div class="flex items-center gap-2">
+                      <span :class="['px-2 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap', payStatusStyle(app.trang_thai_chi_tra)]">
+                        {{ payStatusLabel(app.trang_thai_chi_tra) }}
+                      </span>
+                      <!-- Nút xác nhận chi — chỉ hiện khi PROCESSING & có quyền -->
+                      <button
+                        v-if="(authStore.isAdmin || authStore.isFinance) && app.trang_thai_chi_tra === 'PROCESSING'"
+                        @click.stop="confirmPaymentFromList(app)"
+                        :disabled="confirmingPayId === app.id"
+                        class="flex items-center gap-1 px-2.5 py-1 bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-300 text-white text-[10px] font-bold rounded-lg transition-all duration-200 shadow-sm hover:shadow-emerald-200 hover:shadow-md whitespace-nowrap"
+                        title="Xác nhận đã chi trả"
+                      >
+                        <svg v-if="confirmingPayId === app.id" class="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="31.4" stroke-dashoffset="10"/>
+                        </svg>
+                        <span v-else class="material-symbols-outlined text-[11px] font-bold">check</span>
+                        {{ confirmingPayId === app.id ? 'Đang...' : 'Xác nhận' }}
+                      </button>
+                    </div>
                   </td>
                   <!-- Actions -->
                   <td class="px-2 py-4">
@@ -254,6 +270,7 @@
                           <button v-if="authStore.isAdmin || authStore.isFinance" @click="createPayment(app)" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-purple-700 hover:bg-purple-50 transition-colors font-semibold">
                             <span class="material-symbols-outlined text-sm">payments</span>Tạo chi trả
                           </button>
+
                         </div>
                       </Teleport>
                     </div>
@@ -607,6 +624,7 @@ onUnmounted(() => document.removeEventListener('click', closeMenu))
 
 // ─── Actions ─────────────────────────────────────────
 const canReview = computed(() => authStore.isAdmin || authStore.isReviewer)
+const confirmingPayId = ref(null)
 const showCreateModal = ref(false)
 const creatingApp = ref(false)
 const beneficiaries = ref([])
@@ -653,7 +671,37 @@ function approveApp(app) {
 }
 function viewDocs(app) { openDetail(app); openMenuId.value = null }
 function viewAI(app)   { openDetail(app); openMenuId.value = null }
-function createPayment(app) { router.push('/ngan-sach'); openMenuId.value = null }
+function createPayment(app) { 
+  router.push(`/ho-so/${app.id}?tab=payment&action=pay`)
+  openMenuId.value = null 
+}
+
+async function confirmPaymentFromList(app) {
+  if (confirmingPayId.value) return
+  confirmingPayId.value = app.id
+  openMenuId.value = null
+  try {
+    const { applicationsApi } = await import('../api/applications')
+    const resPays = await applicationsApi.getPaymentsByApplication(app.id)
+    // HTTP interceptor đã unwrap ApiResponse, nên resPays.data là array trực tiếp
+    const pendingPay = (resPays.data || []).find(
+      p => p.trangThai === 'PENDING' || p.trang_thai === 'PENDING'
+    )
+    if (pendingPay) {
+      await applicationsApi.updatePaymentStatus(pendingPay.id, { trangThai: 'SUCCESS' })
+      // Cập nhật local state ngay (không reload cả trang)
+      app.trang_thai_chi_tra = 'COMPLETED'
+      app.trang_thai = 'PAID'
+      ui.showSuccess(`✅ Đã xác nhận chi trả ${formatCurrency(pendingPay.soTien || 0)} thành công!`)
+    } else {
+      ui.showError('Không tìm thấy giao dịch đang chờ xật dịch. Hãy kiểm tra trong chi tiết hồ sơ.')
+    }
+  } catch (e) {
+    ui.showError('Xác nhận thất bại: ' + (e.response?.data?.message || e.message))
+  } finally {
+    confirmingPayId.value = null
+  }
+}
 
 async function exportCsv() {
   try {
@@ -685,6 +733,12 @@ function statusLabel(s) { return { DRAFT:'Bản nháp', SUBMITTED:'Đã nộp', 
 function payStatusStyle(s) { return { PENDING:'bg-slate-100 text-slate-500', PROCESSING:'bg-amber-100 text-amber-700', COMPLETED:'bg-emerald-100 text-emerald-700', FAILED:'bg-red-100 text-red-600' }[s] || 'bg-slate-100 text-slate-400' }
 function payStatusLabel(s) { return { PENDING:'Chưa chi', PROCESSING:'Đang xử lý', COMPLETED:'Đã chi', FAILED:'Thất bại' }[s] || '—' }
 function formatDate(d) { if (!d) return '—'; return new Date(d).toLocaleDateString('vi-VN') }
+function formatCurrency(v) {
+  if (!v) return '0đ'
+  if (v >= 1e9) return (v / 1e9).toFixed(1) + ' Tỷ'
+  if (v >= 1e6) return (v / 1e6).toFixed(0) + ' Triệu'
+  return v.toLocaleString('vi-VN') + 'đ'
+}
 
 // ─── Load data ────────────────────────────────────────
 onMounted(async () => {
@@ -732,8 +786,8 @@ onMounted(async () => {
         diem_uu_tien: a.aiReview ? a.aiReview.diemUuTien : (a.diemUuTien || null),
         do_tin_cay: a.aiReview ? a.aiReview.doTinCay : (a.doTinCay || null),
         ai_nhan_xet: a.aiReview ? a.aiReview.nhanXet : null,
-        trang_thai_chi_tra: a.paymentStatus || 'PENDING',
-        trang_thai: a.trangThai || 'PENDING',
+        trang_thai_chi_tra: a.trangThaiChiTra || a.trang_thai_chi_tra || 'PENDING',
+        trang_thai: a.trangThai || a.trang_thai || 'PENDING',
         ngay_nop_ho_so: a.ngayNopHoSo || a.createdAt
       }
     })

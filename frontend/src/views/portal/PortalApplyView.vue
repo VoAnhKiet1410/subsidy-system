@@ -262,7 +262,7 @@ const beneficiaryGroups = ref([])
 
 onMounted(async () => {
   if (route.query.program) {
-    form.value.chuong_trinh_id = Number(route.query.program)
+    form.value.chuong_trinh_id = route.query.program  // ObjectId string, không dùng Number()
   }
   await loadPrograms()
   try {
@@ -390,11 +390,27 @@ async function next() {
 
     // Bước 1: Tạo hồ sơ (trạng thái DRAFT)
     const res = await applicationsApi.create(payloadJson)
-    const appId = res.data?.id
+    const appId = res.data?.id || res.data
 
     if (!appId) throw new Error('Không lấy được ID hồ sơ vừa tạo')
 
-    // Bước 2: Submit hồ sơ (DRAFT → SUBMITTED)
+    // Bước 2: Upload tài liệu đính kèm (nếu có)
+    const validFiles = uploadedFiles.value.filter(f => f.file && f.size <= MAX_FILE_SIZE)
+    if (validFiles.length > 0) {
+      const uploadResults = await Promise.allSettled(
+        validFiles.map(f => {
+          const formData = new FormData()
+          formData.append('file', f.file)
+          return applicationsApi.uploadDocument(appId, formData)
+        })
+      )
+      const failed = uploadResults.filter(r => r.status === 'rejected').length
+      if (failed > 0) {
+        ui.showWarning(`${failed}/${validFiles.length} tài liệu upload thất bại — hồ sơ vẫn được ghi nhận.`)
+      }
+    }
+
+    // Bước 3: Submit hồ sơ (DRAFT → SUBMITTED)
     await applicationsApi.submit(appId)
 
     newAppId.value = appId

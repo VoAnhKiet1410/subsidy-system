@@ -180,10 +180,11 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onBeforeUnmount } from 'vue'
+import { ref, computed, nextTick, onBeforeUnmount, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { authStore } from '../../stores/auth'
 import { useUI } from '../../stores/ui'
+import { applicationsApi } from '../../api/applications'
 import jsQR from 'jsqr'
 
 const router = useRouter()
@@ -434,11 +435,25 @@ const fields = [
   { key:'email',        label:'Email / Tên đăng nhập', icon:'mail' },
 ]
 
-const stats = [
-  { label:'Hồ sơ đã nộp', value:3, icon:'folder_open',  bg:'bg-primary/10',   color:'text-primary' },
-  { label:'Chờ duyệt',    value:1, icon:'hourglass_top', bg:'bg-amber-100',    color:'text-amber-600' },
-  { label:'Đã duyệt',     value:2, icon:'check_circle',  bg:'bg-emerald-100',  color:'text-emerald-600' },
-]
+const stats = ref([
+  { label:'Hồ sơ đã nộp', value:0, icon:'folder_open',  bg:'bg-primary/10',   color:'text-primary' },
+  { label:'Chờ duyệt',    value:0, icon:'hourglass_top', bg:'bg-amber-100',    color:'text-amber-600' },
+  { label:'Đã duyệt',     value:0, icon:'check_circle',  bg:'bg-emerald-100',  color:'text-emerald-600' },
+])
+
+onMounted(async () => {
+  try {
+    const res = await applicationsApi.getMyStats()
+    const data = res.data?.data || res.data
+    if (data) {
+      stats.value[0].value = data.total || 0
+      stats.value[1].value = data.pending || 0
+      stats.value[2].value = data.approved || 0
+    }
+  } catch (error) {
+    console.error('Lỗi khi tải thống kê:', error)
+  }
+})
 
 function handleLogout() {
   authStore.logout()

@@ -107,6 +107,13 @@ public class HoSoController {
                 hoSoService.search(user.getId(), null, null, null, null, null, pageable))));
     }
 
+    @GetMapping("/stats/my")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OFFICER', 'CITIZEN')")
+    @Operation(summary = "Lấy thống kê hồ sơ của tôi")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Long>>> getMyStats(Principal principal) {
+        return ResponseEntity.ok(ApiResponse.success(hoSoService.getPersonalStats(principal.getName())));
+    }
+
     // ─── GET chi tiết ───────────────────────────────────────────────
     @GetMapping("/{id}")
     @Operation(summary = "Chi tiết hồ sơ")

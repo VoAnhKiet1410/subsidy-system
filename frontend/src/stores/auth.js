@@ -104,7 +104,9 @@ export const authStore = reactive({
 
   async updateUser(profileData) {
     const res = await authApi.updateProfile(profileData)
-    const updated = { ...this.user, ...res.data }
+    // Dữ liệu User thực nằm ở res.data.data
+    const updatedUser = res.data?.data || res.data
+    const updated = { ...this.user, ...updatedUser }
     this.user = updated
     localStorage.setItem('user', JSON.stringify(updated))
     return updated

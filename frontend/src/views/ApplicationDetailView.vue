@@ -8,7 +8,7 @@
       </button>
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-3 flex-wrap">
-          <h2 class="text-lg font-black text-slate-800">#HS-{{ app.id }}</h2>
+          <h2 class="text-lg font-black text-slate-800">{{ app.maHoSo || ('#HS-' + app.id?.substring(0, 8)) }}</h2>
           <span :class="['px-3 py-1 rounded-full text-xs font-black', st.badge]">{{ st.label }}</span>
           <span v-if="app.diem_uu_tien >= 80" class="flex items-center gap-1 px-2.5 py-1 bg-amber-100 text-amber-700 rounded-full text-[10px] font-black">
             <span class="material-symbols-outlined text-sm" style="font-variation-settings:'FILL' 1;">star</span>Ưu tiên cao
@@ -129,27 +129,41 @@
           <div v-else class="divide-y divide-slate-50">
             <div v-for="doc in app.documents" :key="doc.id" class="flex items-center gap-4 px-6 py-4 hover:bg-slate-50 transition-colors">
               <div class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0">
-                <span class="material-symbols-outlined text-slate-500" style="font-variation-settings:'FILL' 1;">{{ doc.loai_file?.includes('pdf') ? 'picture_as_pdf' : 'image' }}</span>
+                <span class="material-symbols-outlined text-slate-500" style="font-variation-settings:'FILL' 1;">
+                  {{ (doc.loaiFile || doc.loai_file || '').includes('pdf') ? 'picture_as_pdf' : (doc.loaiFile || doc.loai_file || '').includes('image') ? 'image' : 'description' }}
+                </span>
               </div>
               <div class="flex-1 min-w-0">
-                <p class="font-semibold text-slate-800 text-sm truncate">{{ doc.ten_tai_lieu }}</p>
-                <p class="text-xs text-slate-400">{{ doc.loai_tai_lieu }} · {{ doc.kich_thuoc || '—' }}</p>
+                <p class="font-semibold text-slate-800 text-sm truncate">{{ doc.tenTaiLieu || doc.ten_tai_lieu || doc.id }}</p>
+                <p class="text-xs text-slate-400">
+                  {{ doc.loaiFile || doc.loai_file || 'Tài liệu' }}
+                  <span v-if="doc.kichThuoc || doc.kich_thuoc"> · {{ Math.round((doc.kichThuoc || doc.kich_thuoc) / 1024) }} KB</span>
+                </p>
               </div>
-              <span :class="['px-2.5 py-1 rounded-full text-[10px] font-black flex-shrink-0', doc.trang_thai_ocr==='DONE' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700']">
-                {{ doc.trang_thai_ocr==='DONE' ? '✓ OCR hoàn tất' : '⏳ Đang OCR' }}
-              </span>
+              <span v-if="doc.ketQuaOcr || doc.ket_qua_ocr" class="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700 flex-shrink-0">✓ OCR xong</span>
+              <span v-else class="px-2.5 py-1 rounded-full text-[10px] font-black bg-slate-100 text-slate-500 flex-shrink-0">Chưa OCR</span>
               <div class="flex gap-2 flex-shrink-0">
-                <button class="p-2 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"><span class="material-symbols-outlined text-sm">visibility</span></button>
-                <button class="p-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"><span class="material-symbols-outlined text-sm">download</span></button>
+                <a v-if="doc.duongDanFile || doc.duong_dan_file"
+                  :href="'/api/files/' + (doc.duongDanFile || doc.duong_dan_file)"
+                  target="_blank"
+                  class="p-2 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">
+                  <span class="material-symbols-outlined text-sm">visibility</span>
+                </a>
+                <a v-if="doc.duongDanFile || doc.duong_dan_file"
+                  :href="'/api/files/' + (doc.duongDanFile || doc.duong_dan_file)"
+                  download
+                  class="p-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
+                  <span class="material-symbols-outlined text-sm">download</span>
+                </a>
               </div>
             </div>
           </div>
           <!-- OCR result -->
-          <div v-if="app.documents?.some(d=>d.ocr_text)" class="border-t border-slate-100 p-6">
+          <div v-if="app.documents?.some(d => d.ketQuaOcr || d.ket_qua_ocr)" class="border-t border-slate-100 p-6">
             <h5 class="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">Kết quả OCR</h5>
-            <div v-for="doc in app.documents.filter(d=>d.ocr_text)" :key="'ocr'+doc.id" class="bg-slate-50 rounded-xl p-4 mb-3 last:mb-0">
-              <p class="text-[10px] font-bold text-slate-400 mb-2">{{ doc.ten_tai_lieu }}</p>
-              <p class="text-sm text-slate-700 font-mono leading-relaxed">{{ doc.ocr_text }}</p>
+            <div v-for="doc in app.documents.filter(d => d.ketQuaOcr || d.ket_qua_ocr)" :key="'ocr'+doc.id" class="bg-slate-50 rounded-xl p-4 mb-3 last:mb-0">
+              <p class="text-[10px] font-bold text-slate-400 mb-2">{{ doc.tenTaiLieu || doc.ten_tai_lieu }}</p>
+              <p class="text-sm text-slate-700 font-mono leading-relaxed">{{ doc.ketQuaOcr || doc.ket_qua_ocr }}</p>
             </div>
           </div>
         </div>
@@ -240,16 +254,22 @@
                     <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">payments</span>
                   </div>
                   <div>
-                    <p class="font-black text-slate-800 text-lg">{{ formatVnd(pay.so_tien) }}</p>
-                    <p class="text-xs text-slate-400">{{ formatDate(pay.ngay_chi_tra) }}</p>
+                    <p class="font-black text-slate-800 text-lg">{{ formatVnd(pay.soTien || pay.so_tien) }}</p>
+                    <p class="text-xs text-slate-400">{{ formatDate(pay.ngayChiTra || pay.ngay_chi_tra) }}</p>
                   </div>
                 </div>
-                <span :class="['px-3 py-1.5 rounded-full text-xs font-black', payStyle(pay.trang_thai).badge]">{{ payStyle(pay.trang_thai).label }}</span>
+                <div class="flex gap-2 items-center">
+                  <span :class="['px-3 py-1.5 rounded-full text-xs font-black flex-shrink-0', payStyle(pay.trangThai || pay.trang_thai).badge]">{{ payStyle(pay.trangThai || pay.trang_thai).label }}</span>
+                  <button v-if="(pay.trangThai || pay.trang_thai) === 'PENDING' && canPay" @click="confirmPaymentSuccess(pay.id)"
+                    class="px-3 py-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shadow-sm">
+                    <span class="material-symbols-outlined text-[14px] font-bold">check</span>Xác nhận chi
+                  </button>
+                </div>
               </div>
               <div class="grid grid-cols-3 gap-4 pt-4 border-t border-slate-50 text-xs">
-                <div><p class="text-slate-400 mb-0.5">Phương thức</p><p class="font-bold text-slate-700">{{ pay.phuong_thuc==='CHUYEN_KHOAN'?'Chuyển khoản':pay.phuong_thuc==='TIEN_MAT'?'Tiền mặt':'ATM' }}</p></div>
-                <div><p class="text-slate-400 mb-0.5">Tài khoản</p><p class="font-bold text-slate-700">{{ pay.so_tai_khoan || '—' }}</p></div>
-                <div><p class="text-slate-400 mb-0.5">Ghi chú</p><p class="font-bold text-slate-700">{{ pay.ghi_chu || '—' }}</p></div>
+                <div><p class="text-slate-400 mb-0.5">Phương thức</p><p class="font-bold text-slate-700">{{ {'CHUYEN_KHOAN':'Chuyển khoản','TIEN_MAT':'Tiền mặt','ATM':'ATM','BANK_TRANSFER':'Chuyển khoản','CASH':'Tiền mặt'}[pay.phuongThuc || pay.phuong_thuc] || (pay.phuongThuc || pay.phuong_thuc) || '—' }}</p></div>
+                <div><p class="text-slate-400 mb-0.5">Người xử lý</p><p class="font-bold text-slate-700">{{ pay.processedBy || '—' }}</p></div>
+                <div><p class="text-slate-400 mb-0.5">Ghi chú</p><p class="font-bold text-slate-700">{{ pay.ghiChu || pay.ghi_chu || '—' }}</p></div>
               </div>
             </div>
           </div>
@@ -426,11 +446,12 @@ import { useRoute } from 'vue-router'
 import { authStore } from '../stores/auth'
 import { useUI } from '../stores/ui'
 import http from '../api/http'
+import { applicationsApi } from '../api/applications'
 
 const route = useRoute()
 const ui    = useUI()
 const loading = ref(true)
-const activeTab = ref('overview')
+const activeTab = ref(route.query.tab || 'overview')
 const showRejectModal = ref(false)
 const showPayModal = ref(false)
 const rejectReason = ref('')
@@ -447,11 +468,11 @@ const InfoRow = {
 }
 
 const tabs = [
-  { key: 'overview', label: 'Tong quan',  icon: 'info' },
-  { key: 'docs',     label: 'Tai lieu',   icon: 'attach_file' },
-  { key: 'ai',       label: 'Danh gia AI',icon: 'psychology' },
-  { key: 'payment',  label: 'Chi tra',    icon: 'payments' },
-  { key: 'history',  label: 'Lich su',    icon: 'history' },
+  { key: 'overview', label: 'Tổng quan',   icon: 'info' },
+  { key: 'docs',     label: 'Tài liệu',    icon: 'attach_file' },
+  { key: 'ai',       label: 'Đánh giá AI',  icon: 'psychology' },
+  { key: 'payment',  label: 'Chi trả',     icon: 'payments' },
+  { key: 'history',  label: 'Lịch sử',    icon: 'history' },
 ]
 
 const app = ref({
@@ -480,7 +501,7 @@ const STATUS_FALLBACK = { badge:'bg-slate-100 text-slate-600', iconBg:'bg-slate-
 const st = computed(() => STATUS_MAP[app.value.trang_thai] || STATUS_FALLBACK)
 
 const quickInfo = computed(() => [
-  { label: 'Mã hồ sơ',    value: `#HS-${app.value.id}` },
+  { label: 'Mã hồ sơ',    value: app.value.maHoSo || `#HS-${app.value.id?.substring(0,8)}` },
   { label: 'Ngày nộp',    value: formatDate(app.value.ngay_nop_ho_so) },
   { label: 'Đối tượng',   value: app.value.doi_tuong?.ten_doi_tuong || '—' },
   { label: 'Chương trình',value: app.value.chuong_trinh?.ten_chuong_trinh || '—' },
@@ -489,12 +510,17 @@ const quickInfo = computed(() => [
 
 const timeline = computed(() => {
   const a = app.value
+  const status = a.trang_thai || a.trangThai || ''
+  const isReviewed = ['UNDER_REVIEW', 'REVIEWING', 'APPROVED', 'REJECTED', 'PAID'].includes(status)
+  const isApproved = ['APPROVED', 'PAID'].includes(status)
+  const isRejected = status === 'REJECTED'
+  const isPaid = status === 'PAID' || a.payments?.some(p => (p.trangThai || p.trang_thai) === 'SUCCESS')
   return [
-    { title:'Nộp hồ sơ',          icon:'upload_file',  color:'bg-blue-500',   done: true, time: formatDate(a.ngay_nop_ho_so), note: 'Hồ sơ đã được tiếp nhận' },
-    { title:'Xét duyệt',           icon:'manage_search',color:'bg-amber-500',  done: ['REVIEWING','APPROVED','REJECTED'].includes(a.trang_thai), time: null },
+    { title:'Nộp hồ sơ',          icon:'upload_file',  color:'bg-blue-500',   done: true,       time: formatDate(a.ngay_nop_ho_so || a.ngayNopHoSo), note: 'Hồ sơ đã được tiếp nhận' },
+    { title:'Xét duyệt',           icon:'manage_search',color:'bg-amber-500',  done: isReviewed, time: isReviewed ? 'Hoàn tất' : null },
     { title:'Đánh giá AI',         icon:'psychology',   color:'bg-purple-500', done: !!a.danh_gia_ai, time: a.danh_gia_ai ? 'Đã hoàn tất' : null, note: a.danh_gia_ai ? `Điểm ưu tiên: ${a.danh_gia_ai.diem_uu_tien}` : null },
-    { title:'Phê duyệt / Từ chối', icon:'gavel',        color: a.trang_thai === 'REJECTED' ? 'bg-red-500' : 'bg-emerald-500', done: ['APPROVED','REJECTED'].includes(a.trang_thai), time: null, note: a.ly_do_tu_choi },
-    { title:'Chi trả',             icon:'payments',     color:'bg-teal-500',   done: a.payments?.some(p => p.trang_thai === 'COMPLETED'), time: null },
+    { title:'Phê duyệt / Từ chối', icon:'gavel',        color: isRejected ? 'bg-red-500' : 'bg-emerald-500', done: isApproved || isRejected, time: isApproved ? 'Phê duyệt' : isRejected ? 'Từ chối' : null, note: a.ly_do_tu_choi || a.lyDoTuChoi },
+    { title:'Chi trả',             icon:'payments',     color:'bg-teal-500',   done: isPaid,     time: isPaid ? 'Hoàn thành' : null },
   ]
 })
 
@@ -531,19 +557,51 @@ async function confirmReject() {
     ui.showError('Từ chối thất bại: ' + (e.response?.data?.message || e.message))
   }
 }
-function confirmPay() {
-  if (!app.value.payments) app.value.payments = []
-  app.value.payments.push({
-    id: Date.now(),
-    so_tien: Number(payForm.value.so_tien.replace(/\D/g, '')),
-    phuong_thuc: payForm.value.phuong_thuc,
-    ngay_chi_tra: payForm.value.ngay_chi_tra,
-    ghi_chu: payForm.value.ghi_chu,
-    trang_thai: 'PROCESSING',
-  })
-  showPayModal.value = false
-  ui.showSuccess('Đã tạo chi trả!')
+async function confirmPay() {
+  const amountStr = String(payForm.value.so_tien).replace(/\D/g, '')
+  if (!amountStr || Number(amountStr) <= 0) {
+    ui.showError('Vui lòng nhập số tiền hợp lệ')
+    return
+  }
+
+  try {
+    const payload = {
+      hoSoHoTroId: app.value.id,
+      soTien: Number(amountStr),
+      phuongThuc: payForm.value.phuong_thuc,
+      ghiChu: payForm.value.ghi_chu || ''
+    }
+    
+    await applicationsApi.createPayment(payload)
+    showPayModal.value = false
+    ui.showSuccess('Đã tạo giao dịch chi trả (PENDING)!')
+    
+    // Tải lại lịch sử thanh toán
+    const resPays = await applicationsApi.getPaymentsByApplication(app.value.id)
+    app.value.payments = resPays.data || []
+  } catch (e) {
+    ui.showError('Tạo chi trả thất bại: ' + (e.response?.data?.message || e.message))
+  }
 }
+async function confirmPaymentSuccess(payId) {
+  try {
+    await applicationsApi.updatePaymentStatus(payId, { trangThai: 'SUCCESS' })
+    ui.showSuccess('Đã xác nhận chi trả thành công!')
+    
+    // Tải lại lịch sử thanh toán
+    const resPays = await applicationsApi.getPaymentsByApplication(app.value.id)
+    app.value.payments = resPays.data || []
+    
+    // Tải lại chi tiết hồ sơ để cập nhật trạng thái hiển thị (Thành PAID)
+    const resApp = await http.get(`/applications/${route.params.id}`)
+    const a = resApp.data?.content || resApp.data || {}
+    app.value.trang_thai = a.trangThai || a.trang_thai
+    app.value.trang_thai_chi_tra = a.trangThaiChiTra || a.trang_thai_chi_tra || 'PENDING'
+  } catch (e) {
+    ui.showError('Cập nhật thất bại: ' + (e.response?.data?.message || e.message))
+  }
+}
+
 function sendNotif() { ui.showSuccess('Đã gửi thông báo đến người nộp!') }
 function printApp()  { window.print() }
 
@@ -566,14 +624,18 @@ function formatVnd(v)  {
 
 onMounted(async () => {
   try {
-    const [resApp, resUsers, resProgs, resCats] = await Promise.all([
+    const [resApp, resUsers, resProgs, resCats, resPays, resDocs] = await Promise.all([
       http.get(`/applications/${route.params.id}`),
       http.get('/users', { params: { size: 1000 } }).catch(()=>({data:[]})),
       http.get('/programs', { params: { size: 500 } }).catch(()=>({data:[]})),
-      http.get('/beneficiary-groups', { params: { size: 1000 } }).catch(()=>({data:[]}))
+      http.get('/beneficiary-groups', { params: { size: 1000 } }).catch(()=>({data:[]})),
+      applicationsApi.getPaymentsByApplication(route.params.id).catch(()=>({data:[]})),
+      applicationsApi.getDocuments(route.params.id).catch(()=>({data:[]})),
     ])
 
-    const a = resApp.data?.content || resApp.data || {};
+    const a = resApp.data || {};
+    // maHoSo: lấy từ entity (HS-0001), ưu tiên hơn MongoDB ObjectId
+    const maHoSo = a.maHoSo || a.ma_ho_so
     
     // Attempt mappings
     const usersList = resUsers.data?.content || resUsers.data || [];
@@ -587,6 +649,7 @@ onMounted(async () => {
     app.value = {
       ...a,
       id: a.id,
+      maHoSo: maHoSo,
       trang_thai: a.trangThai || 'PENDING',
       ngay_nop_ho_so: a.ngayNopHoSo || a.createdAt,
       nguoi_dung: { 
@@ -615,9 +678,23 @@ onMounted(async () => {
         nhan_xet: a.aiReview.nhanXet || a.aiReview.nhanXetAi || '',
         cac_yeu_to: a.aiReview.cacYeuTo || [],
       } : null,
-      documents: a.taiLieuDinhKem || a.documents || [],
-      payments: a.chiTra || a.payments || [],
+      documents: resDocs.data || a.taiLieuDinhKem || a.documents || [],
+      payments: resPays.data || [],
     }
+
+    // Auto open pay modal if requested from Beneficiaries list
+    if (route.query.action === 'pay') {
+      if (canPay.value) {
+        if (app.value.trang_thai === 'APPROVED') {
+          showPayModal.value = true
+        } else {
+          ui.showError('Chỉ có thể tạo chi trả khi hồ sơ đã được PHÊ DUYỆT (APPROVED).')
+        }
+      } else {
+        ui.showError('Bạn không có quyền thực hiện chức năng chi trả.')
+      }
+    }
+    
   } catch (e) {
     console.error('Lỗi tải hồ sơ:', e)
     ui.showError('Không thể tải thông tin hồ sơ.')

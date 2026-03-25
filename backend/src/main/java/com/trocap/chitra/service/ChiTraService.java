@@ -20,6 +20,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Set;
 
 @Slf4j
@@ -50,6 +51,11 @@ public class ChiTraService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy giao dịch: " + id));
     }
 
+    // ─── Tìm chi trả theo hồ sơ ─────────────────────────────────────
+    public List<ChiTraTruCap> findByHoSoId(String hoSoId) {
+        return chiTraRepository.findByHoSoHoTroId(hoSoId);
+    }
+
     // ─── Tạo chi trả mới (PENDING) ─────────────────────────────────
     public ChiTraTruCap create(PaymentRequest request, String username) {
         // 1. Validate hồ sơ tồn tại
@@ -75,7 +81,12 @@ public class ChiTraService {
                 .processedBy(username)
                 .build();
 
-        return chiTraRepository.save(payment);
+        payment = chiTraRepository.save(payment);
+
+        hoSo.setTrangThaiChiTra("PROCESSING");
+        hoSoRepository.save(hoSo);
+
+        return payment;
     }
 
     // ─── Cập nhật trạng thái chi trả ────────────────────────────────
@@ -106,9 +117,16 @@ public class ChiTraService {
 
         // ═══════════════════════════════════════════════════════════
         // Xử lý side-effects khi SUCCESS
+        // Xử lý side-effects khi lập mới/thành công
         // ═══════════════════════════════════════════════════════════
         if ("SUCCESS".equals(newStatus)) {
             processSuccessPayment(payment);
+        } else if ("FAILED".equals(newStatus) || "CANCELLED".equals(newStatus)) {
+            HoSoHoTro hoSo = hoSoRepository.findById(payment.getHoSoHoTroId()).orElse(null);
+            if (hoSo != null) {
+                hoSo.setTrangThaiChiTra("FAILED");
+                hoSoRepository.save(hoSo);
+            }
         }
 
         return chiTraRepository.save(payment);
@@ -130,8 +148,9 @@ public class ChiTraService {
             deductBudget(chuongTrinh.getNguonQuyId(), chuongTrinh, payment.getSoTien());
         }
 
-        // 4. Cập nhật hồ sơ sang PAID
+        // 4. Cập nhật hồ sơ sang PAID và trạng thái chi trả COMPLETED
         hoSo.setTrangThai("PAID");
+        hoSo.setTrangThaiChiTra("COMPLETED");
         hoSoRepository.save(hoSo);
         log.info("Hồ sơ {} đã chuyển sang PAID", hoSo.getId());
 

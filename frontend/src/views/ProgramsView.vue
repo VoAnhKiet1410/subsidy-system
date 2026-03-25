@@ -127,7 +127,7 @@
 
     <!-- CREATE / EDIT MODAL -->
     <Teleport to="body">
-      <div v-if="showModal" class="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" @click.self="showModal=false">
+      <div v-if="showModal" class="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
         <div class="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden">
           <div class="h-1.5 bg-gradient-to-r from-primary to-indigo-400"></div>
           <div class="p-8">
@@ -183,7 +183,9 @@
               </div>
             </div>
             <div class="flex justify-end gap-3 mt-7">
-              <button @click="showModal=false" class="px-5 py-2.5 text-sm font-semibold text-slate-500 hover:bg-slate-100 rounded-xl">Hủy</button>
+              <button @click="showModal=false" class="px-5 py-2.5 text-sm font-semibold text-slate-500 hover:bg-slate-100 rounded-xl flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-sm">close</span>Hủy
+              </button>
               <button @click="saveProgram" :disabled="saving"
                 class="px-6 py-2.5 bg-primary text-white text-sm font-bold rounded-xl hover:opacity-90 shadow-md shadow-primary/20 disabled:opacity-50">
                 {{ saving ? 'Đang lưu...' : (editProgram ? 'Cập nhật' : 'Tạo chương trình') }}
@@ -196,7 +198,7 @@
 
     <!-- DETAIL MODAL -->
     <Teleport to="body">
-      <div v-if="detailProgram" class="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" @click.self="detailProgram=null">
+      <div v-if="detailProgram" class="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
         <div class="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden">
           <div :class="['h-1.5', statusStyle(detailProgram.trang_thai).gradient]"></div>
           <div class="p-8">

@@ -75,7 +75,7 @@
                 <p class="font-bold text-slate-800 text-sm truncate">{{ app.ten_chuong_trinh }}</p>
                 <span :class="['px-2.5 py-1 rounded-full text-[10px] font-black flex-shrink-0', stStyle(app.trang_thai).badge]">{{ stStyle(app.trang_thai).label }}</span>
               </div>
-              <p class="text-xs text-slate-400 mt-0.5">#HS-{{ app.id }} · Nộp {{ formatDate(app.ngay_nop) }}</p>
+              <p class="text-xs text-slate-400 mt-0.5">{{ app.maHoSo || '#HS-' + (app.id?.substring(0,8) || '—') }} · Nộp {{ formatDate(app.ngay_nop) }}</p>
               <!-- Mini timeline -->
               <div class="flex items-center gap-1 mt-2">
                 <div v-for="(step, i) in app.steps" :key="i"
@@ -154,22 +154,25 @@ onMounted(async () => {
 
     const [appsRes, statsRes] = await Promise.allSettled([
       applicationsApi.getMyApplications(0, 3),
-      applicationsApi.getStats(),
+      applicationsApi.getMyStats(),
     ])
 
     // Hồ sơ gần đây
-    if (appsRes.status === 'fulfilled' && appsRes.value.data?.content?.length) {
-      const list = appsRes.value.data.content
+    if (appsRes.status === 'fulfilled') {
+      const raw = appsRes.value.data
+      const list = raw?.content || (Array.isArray(raw) ? raw : [])
       recentApps.value = list.slice(0, 3).map(a => {
         const prog = allProgs.find(p => p.id === a.chuongTrinhId)
+        const status = a.trangThai || a.trang_thai || 'SUBMITTED'
         return {
           ...a,
-          id: a.id || a.maHoSo || a.code,
-          trang_thai: a.trangThai || 'PENDING',
-          ten_chuong_trinh: prog ? prog.tenChuongTrinh : (a.chuongTrinhId ? `Chương trình ID:${a.chuongTrinhId}` : 'Không xác định'),
-          ngay_nop: a.ngayNopHoSo || a.createdAt || Date.now(),
+          id: a.id,
+          maHoSo: a.maHoSo || a.ma_ho_so,
+          trang_thai: status,
+          ten_chuong_trinh: prog ? prog.tenChuongTrinh : '—',
+          ngay_nop: a.ngayNopHoSo || a.ngay_nop_ho_so || a.createdAt || Date.now(),
           steps: [1, 2, 3, 4],
-          step_done: a.trangThai === 'APPROVED' || a.trangThai === 'PAID' ? 4 : (a.trangThai === 'UNDER_REVIEW' ? 2 : 1)
+          step_done: ['APPROVED','PAID'].includes(status) ? 4 : status === 'UNDER_REVIEW' ? 2 : 1
         }
       })
     } else {
@@ -178,14 +181,16 @@ onMounted(async () => {
 
     // Stats
     if (statsRes.status === 'fulfilled' && statsRes.value.data) {
-      const s = statsRes.value.data
-      quickStats.value[0].value = s.total || 0
-      quickStats.value[1].value = s.pending || s.SUBMITTED || s.UNDER_REVIEW || 0
-      quickStats.value[2].value = s.approved || s.APPROVED || s.PAID || 0
+      const s = statsRes.value.data?.data || statsRes.value.data
+      if (s) {
+        quickStats.value[0].value = s.total || 0
+        quickStats.value[1].value = s.pending || 0
+        quickStats.value[2].value = s.approved || 0
+      }
     } else {
       quickStats.value[0].value = recentApps.value.length
-      quickStats.value[1].value = recentApps.value.filter(a => a.trang_thai === 'PENDING' || a.trang_thai === 'SUBMITTED').length
-      quickStats.value[2].value = recentApps.value.filter(a => a.trang_thai === 'APPROVED').length
+      quickStats.value[1].value = recentApps.value.filter(a => a.trang_thai === 'PENDING' || a.trang_thai === 'SUBMITTED' || a.trang_thai === 'UNDER_REVIEW').length
+      quickStats.value[2].value = recentApps.value.filter(a => a.trang_thai === 'APPROVED' || a.trang_thai === 'PAID').length
     }
 
     // Chương trình đang mở
@@ -214,12 +219,15 @@ onMounted(async () => {
 })
 
 const STATUS = {
-  PENDING:   { badge:'bg-amber-100 text-amber-700',    icon:'hourglass_top', iconBg:'bg-amber-100',   iconColor:'text-amber-600',  label:'Chờ duyệt' },
-  APPROVED:  { badge:'bg-emerald-100 text-emerald-700',icon:'check_circle',  iconBg:'bg-emerald-100', iconColor:'text-emerald-600',label:'Đã duyệt' },
-  REJECTED:  { badge:'bg-red-100 text-red-600',        icon:'cancel',        iconBg:'bg-red-100',     iconColor:'text-red-500',    label:'Từ chối' },
-  REVIEWING: { badge:'bg-blue-100 text-blue-700',      icon:'manage_search', iconBg:'bg-blue-100',    iconColor:'text-blue-600',   label:'Đang xét duyệt' },
+  DRAFT:        { badge:'bg-slate-100 text-slate-600',     icon:'draft',         iconBg:'bg-slate-100',   iconColor:'text-slate-500',  label:'Bản nháp' },
+  SUBMITTED:    { badge:'bg-amber-100 text-amber-700',     icon:'hourglass_top', iconBg:'bg-amber-100',   iconColor:'text-amber-600',  label:'Chờ duyệt' },
+  PENDING:      { badge:'bg-amber-100 text-amber-700',     icon:'hourglass_top', iconBg:'bg-amber-100',   iconColor:'text-amber-600',  label:'Chờ duyệt' },
+  UNDER_REVIEW: { badge:'bg-blue-100 text-blue-700',       icon:'manage_search', iconBg:'bg-blue-100',    iconColor:'text-blue-600',   label:'Đang xét duyệt' },
+  APPROVED:     { badge:'bg-emerald-100 text-emerald-700', icon:'check_circle',  iconBg:'bg-emerald-100', iconColor:'text-emerald-600',label:'Đã duyệt' },
+  REJECTED:     { badge:'bg-red-100 text-red-600',         icon:'cancel',        iconBg:'bg-red-100',     iconColor:'text-red-500',    label:'Từ chối' },
+  PAID:         { badge:'bg-teal-100 text-teal-700',       icon:'payments',      iconBg:'bg-teal-100',    iconColor:'text-teal-600',   label:'Đã chi trả' },
 }
-const stStyle = (s) => STATUS[s] || STATUS.PENDING
+const stStyle = (s) => STATUS[s] || STATUS.SUBMITTED
 
 function formatDate(d) { if(!d) return '—'; return new Date(d).toLocaleDateString('vi-VN') }
 </script>

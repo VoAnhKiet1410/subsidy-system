@@ -29,4 +29,5 @@ public interface HoSoRepository extends MongoRepository<HoSoHoTro, String>, HoSo
     // Đếm
     long countByTrangThai(String trangThai);
     long countByNguoiDungId(String nguoiDungId);
+    long countByNguoiDungIdAndTrangThai(String nguoiDungId, String trangThai);
 }

@@ -44,6 +44,7 @@ public class HoSoHoTro {
     private String trangThai;             // DRAFT, SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED, PAID
 
     private String lyDoTuChoi;            // Lý do từ chối (nếu REJECTED)
+    private String trangThaiChiTra;       // Trạng thái chi trả (PROCESSING, COMPLETED, FAILED...)
 
     private String moTa;                  // Ghi chú, mô tả
     private Double soTienDeXuat;          // Số tiền đề xuất

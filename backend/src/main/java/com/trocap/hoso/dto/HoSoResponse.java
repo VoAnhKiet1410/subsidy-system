@@ -22,6 +22,9 @@ public class HoSoResponse {
     @JsonProperty("trang_thai")
     private String trangThai;
 
+    @JsonProperty("trang_thai_chi_tra")
+    private String trangThaiChiTra;
+
     @JsonProperty("ngay_nop_ho_so")
     private LocalDate ngayNopHoSo;
 
@@ -105,6 +108,7 @@ public class HoSoResponse {
         return HoSoResponse.builder()
                 .id(entity.getId())
                 .trangThai(entity.getTrangThai())
+                .trangThaiChiTra(entity.getTrangThaiChiTra())
                 .ngayNopHoSo(entity.getNgayNopHoSo())
                 .moTa(entity.getMoTa())
                 .soTienDeXuat(entity.getSoTienDeXuat())

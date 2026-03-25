@@ -61,8 +61,14 @@ public class AuthServiceImpl implements AuthService {
         return LoginResponse.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken.getToken())
+                .id(user.getId())
                 .username(user.getUsername())
+                .email(user.getEmail())
                 .fullName(user.getFullName())
+                .phone(user.getPhone())
+                .address(user.getAddress())
+                .cccd(user.getCccd())
+                .ngaySinh(user.getNgaySinh())
                 .roles(user.getRoles())
                 .build();
     }
@@ -113,8 +119,14 @@ public class AuthServiceImpl implements AuthService {
         return LoginResponse.builder()
                 .accessToken(newAccessToken)
                 .refreshToken(refreshToken.getToken())
+                .id(user.getId())
                 .username(user.getUsername())
+                .email(user.getEmail())
                 .fullName(user.getFullName())
+                .phone(user.getPhone())
+                .address(user.getAddress())
+                .cccd(user.getCccd())
+                .ngaySinh(user.getNgaySinh())
                 .roles(user.getRoles())
                 .build();
     }

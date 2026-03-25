@@ -37,7 +37,7 @@
               <p class="font-bold text-slate-800">{{ app.ten_chuong_trinh }}</p>
               <span :class="['px-2.5 py-1 rounded-full text-[10px] font-black flex-shrink-0', stStyle(app.trang_thai).badge]">{{ stStyle(app.trang_thai).label }}</span>
             </div>
-            <p class="text-xs text-slate-400 mb-3">#HS-{{ app.id }} · Nộp {{ formatDate(app.ngay_nop) }}</p>
+            <p class="text-xs text-slate-400 mb-3">{{ app.maHoSo || '#HS-' + app.id?.substring(0,8) }} · Nộp {{ formatDate(app.ngay_nop) }}</p>
             <!-- Timeline dots -->
             <div class="flex items-center gap-2">
               <div v-for="(st, i) in timelineSteps" :key="i" class="flex items-center gap-1.5">
@@ -59,6 +59,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { applicationsApi } from '../../api/applications'
+import http from '../../api/http'
 
 const activeTab = ref('all')
 const loading = ref(false)
@@ -79,22 +80,27 @@ onMounted(async () => {
       applicationsApi.getMyApplications(),
       http.get('/programs', { params: { size: 500 } }).catch(() => ({ data: [] }))
     ])
-    
-    const list = resApps.data?.content || resApps.data || []
-    const progsList = resProgs.data?.content || resProgs.data || []
+
+    // HTTP interceptor đã unwrap: data = PageResponse (có .content) hoặc array
+    const raw = resApps.data
+    const list = raw?.content || (Array.isArray(raw) ? raw : [])
+    const progsList = resProgs.data?.content || (Array.isArray(resProgs.data) ? resProgs.data : [])
     const progMap = Object.fromEntries(progsList.map(p => [p.id, p.tenChuongTrinh || p.name || '—']))
 
     apps.value = list.map(a => ({
       ...a,
       id: a.id,
+      maHoSo: a.maHoSo || a.ma_ho_so,
       ten_chuong_trinh: progMap[a.chuongTrinhId] || '—',
-      trang_thai: a.trangThai || 'PENDING',
-      ngay_nop: a.ngayNopHoSo || a.createdAt,
-      step: a.trangThai === 'PENDING' ? 1 
-          : a.trangThai === 'UNDER_REVIEW' ? 2 
+      trang_thai: a.trangThai || a.trang_thai || 'SUBMITTED',
+      ngay_nop: a.ngayNopHoSo || a.ngay_nop_ho_so || a.createdAt,
+      step: ['DRAFT'].includes(a.trangThai) ? 0
+          : ['SUBMITTED', 'PENDING'].includes(a.trangThai) ? 1
+          : a.trangThai === 'UNDER_REVIEW' ? 2
           : ['APPROVED', 'REJECTED', 'PAID'].includes(a.trangThai) ? 4 : 1
     }))
-  } catch {
+  } catch (e) {
+    console.error('Lỗi tải hồ sơ:', e)
     apps.value = []
   } finally {
     loading.value = false
@@ -103,25 +109,34 @@ onMounted(async () => {
 
 const COUNTS = computed(() => ({
   all:      apps.value.length,
-  PENDING:  apps.value.filter(a=>a.trang_thai==='PENDING').length,
-  APPROVED: apps.value.filter(a=>a.trang_thai==='APPROVED').length,
-  REJECTED: apps.value.filter(a=>a.trang_thai==='REJECTED').length,
+  pending:  apps.value.filter(a => ['SUBMITTED','PENDING','UNDER_REVIEW'].includes(a.trang_thai)).length,
+  APPROVED: apps.value.filter(a => ['APPROVED','PAID'].includes(a.trang_thai)).length,
+  REJECTED: apps.value.filter(a => a.trang_thai === 'REJECTED').length,
 }))
 
 const tabs = computed(() => [
   { key:'all',      label:'Tất cả',    count:COUNTS.value.all },
-  { key:'PENDING',  label:'Chờ duyệt', count:COUNTS.value.PENDING },
+  { key:'pending',  label:'Chờ duyệt', count:COUNTS.value.pending },
   { key:'APPROVED', label:'Đã duyệt',  count:COUNTS.value.APPROVED },
   { key:'REJECTED', label:'Từ chối',  count:COUNTS.value.REJECTED },
 ])
 
-const filtered = computed(() => activeTab.value === 'all' ? apps.value : apps.value.filter(a => a.trang_thai === activeTab.value))
+const filtered = computed(() => {
+  if (activeTab.value === 'all') return apps.value
+  if (activeTab.value === 'pending') return apps.value.filter(a => ['SUBMITTED','PENDING','UNDER_REVIEW'].includes(a.trang_thai))
+  return apps.value.filter(a => a.trang_thai === activeTab.value)
+})
 
 const STATUS = {
-  PENDING:  { badge:'bg-amber-100 text-amber-700',    icon:'hourglass_top', iconBg:'bg-amber-50',   iconColor:'text-amber-500', label:'Chờ duyệt' },
-  APPROVED: { badge:'bg-emerald-100 text-emerald-700',icon:'check_circle',  iconBg:'bg-emerald-50', iconColor:'text-emerald-500',label:'Đã duyệt' },
-  REJECTED: { badge:'bg-red-100 text-red-600',        icon:'cancel',        iconBg:'bg-red-50',     iconColor:'text-red-500',   label:'Từ chối' },
+  DRAFT:        { badge:'bg-slate-100 text-slate-600',     icon:'draft',         iconBg:'bg-slate-50',    iconColor:'text-slate-400',  label:'Bản nháp' },
+  SUBMITTED:    { badge:'bg-amber-100 text-amber-700',     icon:'hourglass_top', iconBg:'bg-amber-50',    iconColor:'text-amber-500',  label:'Chờ duyệt' },
+  PENDING:      { badge:'bg-amber-100 text-amber-700',     icon:'hourglass_top', iconBg:'bg-amber-50',    iconColor:'text-amber-500',  label:'Chờ duyệt' },
+  UNDER_REVIEW: { badge:'bg-blue-100 text-blue-700',       icon:'manage_search', iconBg:'bg-blue-50',     iconColor:'text-blue-500',   label:'Đang xét duyệt' },
+  APPROVED:     { badge:'bg-emerald-100 text-emerald-700', icon:'check_circle',  iconBg:'bg-emerald-50',  iconColor:'text-emerald-500',label:'Đã duyệt' },
+  REJECTED:     { badge:'bg-red-100 text-red-600',         icon:'cancel',        iconBg:'bg-red-50',      iconColor:'text-red-500',    label:'Từ chối' },
+  PAID:         { badge:'bg-teal-100 text-teal-700',       icon:'payments',      iconBg:'bg-teal-50',     iconColor:'text-teal-500',   label:'Đã chi trả' },
 }
-const stStyle = s => STATUS[s] || STATUS.PENDING
+const stStyle = s => STATUS[s] || STATUS.SUBMITTED
 function formatDate(d) { return d ? new Date(d).toLocaleDateString('vi-VN') : '' }
 </script>
+
