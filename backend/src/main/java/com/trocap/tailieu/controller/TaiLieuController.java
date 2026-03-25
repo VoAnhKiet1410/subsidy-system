@@ -4,15 +4,20 @@ import com.trocap.common.dto.ApiResponse;
 import com.trocap.tailieu.dto.OcrResponse;
 import com.trocap.tailieu.model.TaiLieuDinhKem;
 import com.trocap.tailieu.service.TaiLieuService;
+import com.trocap.tailieu.service.FileStorageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.file.Path;
 import java.security.Principal;
 import java.util.List;
 
@@ -22,6 +27,28 @@ import java.util.List;
 public class TaiLieuController {
 
     private final TaiLieuService taiLieuService;
+    private final FileStorageService fileStorageService;
+
+    // ─── GET serve file thực tế từ disk ─────────────────────────────
+    @GetMapping("/api/files/{filename:.+}")
+    @Operation(summary = "Xem/tải file tài liệu đính kèm")
+    public ResponseEntity<Resource> serveFile(@PathVariable String filename) {
+        try {
+            Path filePath = fileStorageService.getFilePath(filename);
+            Resource resource = new UrlResource(filePath.toUri());
+            if (!resource.exists() || !resource.isReadable()) {
+                return ResponseEntity.notFound().build();
+            }
+            String contentType = java.nio.file.Files.probeContentType(filePath);
+            if (contentType == null) contentType = "application/octet-stream";
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
+                    .contentType(MediaType.parseMediaType(contentType))
+                    .body(resource);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
 
     // ─── POST upload tài liệu cho hồ sơ ────────────────────────────
     @PostMapping(value = "/api/applications/{applicationId}/attachments",

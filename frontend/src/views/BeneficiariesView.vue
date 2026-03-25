@@ -525,15 +525,18 @@ const myApps = ref([])
 const search       = ref('')
 const filterStatus  = ref('')
 const filterProgram = ref('')
-const filterCategory= ref('')
-const filterAiScore = ref('')
-const filterDateFrom= ref('')
-const filterDateTo  = ref('')
+const filterStatus = ref('')
+const filterProgram= ref('')
+const filterCategory=ref('')
+const filterDateFrom=ref('')
+const filterDateTo  =ref('')
+const filterAiScore =ref('') // 'high'|'med'|'low'|''
+const currentPage  = ref(1)
+
 const hasFilter = computed(() => search.value||filterStatus.value||filterProgram.value||filterCategory.value||filterAiScore.value||filterDateFrom.value||filterDateTo.value)
 function clearFilters() { search.value=''; filterStatus.value=''; filterProgram.value=''; filterCategory.value=''; filterAiScore.value=''; filterDateFrom.value=''; filterDateTo.value='' }
 
 // ─── Pagination ───────────────────────────────────────
-const currentPage = ref(1)
 const pageSize = 10
 const totalPages = computed(() => Math.max(1, Math.ceil(filteredApps.value.length / pageSize)))
 const pageNumbers = computed(() => {
@@ -550,9 +553,10 @@ const paginatedApps = computed(() => {
 const programs   = ref([])
 const categories = ref([])
 
-const statusOptions = [
-  { val:'PENDING',   label:'Chờ duyệt' },
-  { val:'REVIEWING', label:'Đang xét' },
+const statuses = [
+  { val:'', label:'Tất cả trạng thái' },
+  { val:'SUBMITTED',   label:'Chờ duyệt' },
+  { val:'UNDER_REVIEW', label:'Đang xét' },
   { val:'APPROVED',  label:'Phê duyệt' },
   { val:'REJECTED',  label:'Từ chối' },
 ]
@@ -570,10 +574,10 @@ const filteredApps = computed(() => {
   else if (filterAiScore.value === 'low') list = list.filter(a => (a.diem_uu_tien||0) < 50)
   if (filterDateFrom.value) list = list.filter(a => a.ngay_nop_ho_so >= filterDateFrom.value)
   if (filterDateTo.value)   list = list.filter(a => a.ngay_nop_ho_so <= filterDateTo.value)
-  // ★ Ưu tiên PENDING (chưa duyệt) lên đầu, trong nhóm PENDING sắp theo điểm AI giảm dần
+  // ★ Ưu tiên SUBMITTED (chưa duyệt) lên đầu, trong nhóm SUBMITTED sắp theo điểm AI giảm dần
   list.sort((a, b) => {
-    const aP = a.trang_thai === 'PENDING' ? 0 : 1
-    const bP = b.trang_thai === 'PENDING' ? 0 : 1
+    const aP = a.trang_thai === 'SUBMITTED' ? 0 : 1
+    const bP = b.trang_thai === 'SUBMITTED' ? 0 : 1
     if (aP !== bP) return aP - bP
     // Cùng nhóm: sắp theo điểm AI giảm dần
     return (b.diem_uu_tien || 0) - (a.diem_uu_tien || 0)
@@ -585,8 +589,8 @@ const filteredApps = computed(() => {
 // Summary stats (clickable filter)
 const summaryStats = computed(() => [
   { label:'Tổng',       value: apps.value.length,                                filter:'',         valueColor:'text-slate-800' },
-  { label:'Chờ duyệt', value: apps.value.filter(a=>a.trang_thai==='PENDING').length,   filter:'PENDING',  valueColor:'text-amber-600' },
-  { label:'Đang xét',  value: apps.value.filter(a=>a.trang_thai==='REVIEWING').length, filter:'REVIEWING',valueColor:'text-blue-600' },
+  { label:'Chờ duyệt', value: apps.value.filter(a=>a.trang_thai==='SUBMITTED').length,   filter:'SUBMITTED',  valueColor:'text-amber-600' },
+  { label:'Đang xét',  value: apps.value.filter(a=>a.trang_thai==='UNDER_REVIEW').length, filter:'UNDER_REVIEW',valueColor:'text-blue-600' },
   { label:'Phê duyệt', value: apps.value.filter(a=>a.trang_thai==='APPROVED').length,  filter:'APPROVED', valueColor:'text-emerald-600' },
   { label:'Từ chối',   value: apps.value.filter(a=>a.trang_thai==='REJECTED').length,  filter:'REJECTED', valueColor:'text-red-500' },
 ])
@@ -655,19 +659,46 @@ async function submitCreateForm() {
 
 const rejectModal = ref({ show: false, app: null, reason: '' })
 function openRejectModal(app) { rejectModal.value = { show: true, app, reason: '' }; openMenuId.value = null }
-function confirmReject() {
-  if (rejectModal.value.app) {
-    rejectModal.value.app.trang_thai = 'REJECTED'
-    rejectModal.value.app.ly_do_tu_choi = rejectModal.value.reason
+async function confirmReject() {
+  const targetApp = rejectModal.value.app
+  if (!targetApp || !rejectModal.value.reason.trim()) return
+  try {
+    // SUBMITTED → UNDER_REVIEW trước (nếu cần)
+    if (targetApp.trang_thai === 'SUBMITTED') {
+      await http.patch(`/applications/${targetApp.id}/under-review`)
+    }
+    // UNDER_REVIEW → REJECTED
+    await http.patch(`/applications/${targetApp.id}/reject`, { lyDoTuChoi: rejectModal.value.reason })
+    // Reload từ server
+    const res = await http.get(`/applications/${targetApp.id}`)
+    const a = res.data || {}
+    targetApp.trang_thai = a.trangThai || 'REJECTED'
+    targetApp.ly_do_tu_choi = a.lyDoTuChoi || rejectModal.value.reason
     ui.showSuccess('Đã từ chối hồ sơ!')
+  } catch (e) {
+    ui.showError('Từ chối thất bại: ' + (e.response?.data?.message || e.message))
   }
   rejectModal.value.show = false
 }
 
-function approveApp(app) {
-  app.trang_thai = 'APPROVED'
-  ui.showSuccess(`Đã phê duyệt hồ sơ #HS-${app.id}!`)
+async function approveApp(targetApp) {
   openMenuId.value = null
+  try {
+    // SUBMITTED → UNDER_REVIEW trước (nếu cần)
+    if (targetApp.trang_thai === 'SUBMITTED') {
+      await http.patch(`/applications/${targetApp.id}/under-review`)
+    }
+    // UNDER_REVIEW → APPROVED
+    await http.patch(`/applications/${targetApp.id}/approve`)
+    // Reload từ server
+    const res = await http.get(`/applications/${targetApp.id}`)
+    const a = res.data || {}
+    targetApp.trang_thai = a.trangThai || 'APPROVED'
+    targetApp.maHoSo = a.maHoSo || targetApp.maHoSo
+    ui.showSuccess(`Đã phê duyệt hồ sơ ${targetApp.maHoSo || '#HS-' + targetApp.id?.substring(0,8)}!`)
+  } catch (e) {
+    ui.showError('Phê duyệt thất bại: ' + (e.response?.data?.message || e.message))
+  }
 }
 function viewDocs(app) { openDetail(app); openMenuId.value = null }
 function viewAI(app)   { openDetail(app); openMenuId.value = null }
@@ -719,17 +750,15 @@ const avatarBgs = ['bg-blue-100 text-blue-700','bg-emerald-100 text-emerald-700'
 
 function statusStyle(s) {
   return {
-    PENDING:      { badge:'bg-amber-100 text-amber-700',    bg:'bg-amber-100',    icon:'text-amber-600',    sym:'hourglass_top',  gradient:'bg-gradient-to-r from-amber-400 to-amber-500',    heroBg:'bg-amber-50'   },
     DRAFT:        { badge:'bg-slate-200 text-slate-600',    bg:'bg-slate-100',    icon:'text-slate-500',    sym:'draft',          gradient:'bg-gradient-to-r from-slate-300 to-slate-400',    heroBg:'bg-slate-50'   },
-    SUBMITTED:    { badge:'bg-blue-100 text-blue-700',      bg:'bg-blue-100',     icon:'text-blue-600',     sym:'send',           gradient:'bg-gradient-to-r from-blue-400 to-blue-500',      heroBg:'bg-blue-50'    },
-    REVIEWING:    { badge:'bg-blue-100 text-blue-700',      bg:'bg-blue-100',     icon:'text-blue-600',     sym:'manage_search',  gradient:'bg-gradient-to-r from-blue-400 to-blue-500',      heroBg:'bg-blue-50'    },
-    UNDER_REVIEW: { badge:'bg-purple-100 text-purple-700',  bg:'bg-purple-100',   icon:'text-purple-600',   sym:'manage_search',  gradient:'bg-gradient-to-r from-purple-400 to-purple-500',  heroBg:'bg-purple-50'  },
+    SUBMITTED:    { badge:'bg-amber-100 text-amber-700',    bg:'bg-amber-100',    icon:'text-amber-600',    sym:'hourglass_top',  gradient:'bg-gradient-to-r from-amber-400 to-amber-500',    heroBg:'bg-amber-50'   },
+    UNDER_REVIEW: { badge:'bg-blue-100 text-blue-700',      bg:'bg-blue-100',     icon:'text-blue-600',     sym:'manage_search',  gradient:'bg-gradient-to-r from-blue-400 to-blue-500',      heroBg:'bg-blue-50'    },
     APPROVED:     { badge:'bg-emerald-100 text-emerald-700',bg:'bg-emerald-100',  icon:'text-emerald-600',  sym:'check_circle',   gradient:'bg-gradient-to-r from-emerald-400 to-emerald-500',heroBg:'bg-emerald-50' },
     REJECTED:     { badge:'bg-red-100 text-red-700',        bg:'bg-red-100',      icon:'text-red-600',      sym:'cancel',         gradient:'bg-gradient-to-r from-red-400 to-red-500',        heroBg:'bg-red-50'     },
-    PAID:         { badge:'bg-teal-100 text-teal-700',      bg:'bg-teal-100',     icon:'text-teal-600',     sym:'payments',       gradient:'bg-gradient-to-r from-teal-400 to-teal-500',      heroBg:'bg-teal-50'    },
+    PAID:         { badge:'bg-purple-100 text-purple-700',  bg:'bg-purple-100',   icon:'text-purple-600',   sym:'payments',       gradient:'bg-gradient-to-r from-purple-400 to-purple-500',  heroBg:'bg-purple-50'  },
   }[s] || { badge:'bg-slate-100 text-slate-600', bg:'bg-slate-100', icon:'text-slate-500', sym:'help', gradient:'bg-slate-300', heroBg:'bg-slate-50' }
 }
-function statusLabel(s) { return { DRAFT:'Bản nháp', SUBMITTED:'Đã nộp', PENDING:'Chờ duyệt', REVIEWING:'Đang xét', UNDER_REVIEW:'Đang xét', APPROVED:'Phê duyệt', REJECTED:'Từ chối', PAID:'Đã chi trả' }[s] || s }
+function statusLabel(s) { return { DRAFT:'Bản nháp', SUBMITTED:'Chờ duyệt', UNDER_REVIEW:'Đang xét', APPROVED:'Phê duyệt', REJECTED:'Từ chối', PAID:'Đã chi trả' }[s] || s }
 function payStatusStyle(s) { return { PENDING:'bg-slate-100 text-slate-500', PROCESSING:'bg-amber-100 text-amber-700', COMPLETED:'bg-emerald-100 text-emerald-700', FAILED:'bg-red-100 text-red-600' }[s] || 'bg-slate-100 text-slate-400' }
 function payStatusLabel(s) { return { PENDING:'Chưa chi', PROCESSING:'Đang xử lý', COMPLETED:'Đã chi', FAILED:'Thất bại' }[s] || '—' }
 function formatDate(d) { if (!d) return '—'; return new Date(d).toLocaleDateString('vi-VN') }

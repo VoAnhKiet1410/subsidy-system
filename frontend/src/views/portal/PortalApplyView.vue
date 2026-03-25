@@ -190,7 +190,7 @@
     <div v-if="submitted" class="bg-white rounded-3xl border border-slate-200/80 shadow-sm p-10 text-center">
       <span class="material-symbols-outlined text-6xl text-emerald-500 block mb-4" style="font-variation-settings:'FILL' 1;">check_circle</span>
       <h2 class="text-2xl font-black text-slate-800 mb-2">Nộp hồ sơ thành công!</h2>
-      <p class="text-xl font-black text-primary mb-2">#HS-{{ newAppId }}</p>
+      <p class="text-xl font-black text-primary mb-2">{{ newMaHoSo || ('#HS-' + (newAppId?.substring(0,8) || '')) }}</p>
       <p class="text-sm text-slate-400 mb-6">Chúng tôi sẽ xem xét và thông báo qua SMS khi có kết quả.</p>
       <div class="flex gap-3 justify-center">
         <router-link to="/portal/ho-so-cua-toi" class="px-5 py-2.5 bg-primary text-white text-sm font-bold rounded-xl">Theo dõi hồ sơ</router-link>
@@ -230,6 +230,7 @@ const currentStep = ref(0)
 const submitted   = ref(false)
 const submitting  = ref(false)
 const newAppId    = ref(null)
+const newMaHoSo   = ref(null)
 const fileInput   = ref(null)
 const loadingPrograms = ref(false)
 
@@ -413,7 +414,8 @@ async function next() {
     // Bước 3: Submit hồ sơ (DRAFT → SUBMITTED)
     await applicationsApi.submit(appId)
 
-    newAppId.value = appId
+    newAppId.value  = appId
+    newMaHoSo.value = res.data?.maHoSo || res.data?.ma_ho_so || null
     submitted.value = true
     ui.showSuccess('Nộp hồ sơ thành công! Hồ sơ đang chờ xét duyệt.')
   } catch (err) {
