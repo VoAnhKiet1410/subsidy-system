@@ -121,8 +121,18 @@
       </div>
     </div>
 
+    <!-- ERROR STATE -->
+    <div v-if="error" class="bg-red-50 border border-red-200 rounded-2xl p-12 text-center">
+      <span class="material-symbols-outlined text-5xl text-red-300 block mb-3">cloud_off</span>
+      <p class="font-bold text-red-600">Không thể tải danh sách chương trình</p>
+      <p class="text-sm text-slate-400 mt-1">Vui lòng kiểm tra kết nối và thử lại</p>
+      <button @click="onMounted" class="mt-4 px-4 py-2 bg-red-100 text-red-600 text-sm font-bold rounded-xl hover:bg-red-200 transition-all">
+        Thử lại
+      </button>
+    </div>
+
     <!-- EMPTY STATE -->
-    <div v-else class="bg-white rounded-2xl border border-slate-200 p-14 text-center">
+    <div v-else-if="!loading && !filteredPrograms.length" class="bg-white rounded-2xl border border-slate-200 p-14 text-center">
       <span class="material-symbols-outlined text-5xl text-slate-200 block mb-3">search_off</span>
       <p class="font-bold text-slate-500">Không tìm thấy chương trình phù hợp</p>
       <p class="text-sm text-slate-400 mt-1">Thử thay đổi bộ lọc hoặc từ khoá tìm kiếm</p>
@@ -216,90 +226,33 @@ const activeCategory = ref('all')
 const selected = ref(null)
 const loading  = ref(false)
 
-const fallbackPrograms = [
-  {
-    id: 1, ten: 'Hỗ trợ người cao tuổi 2026', danh_muc: 'Người cao tuổi',
-    icon: 'elderly', iconBg: 'bg-blue-50', iconColor: 'text-blue-500',
-    status: 'OPEN', han_nop: '31/12/2026', muc_ho_tro: '500.000đ/tháng',
-    con_lai: 280, so_ho_so: 124,
-    mo_ta: 'Chương trình hỗ trợ tài chính hàng tháng dành cho người cao tuổi từ 60 tuổi trở lên có hoàn cảnh kinh tế khó khăn, không có nguồn thu nhập ổn định.',
-    yeu_cau: ['Từ 60 tuổi trở lên', 'Hộ nghèo hoặc cận nghèo', 'Không có lương hưu hoặc trợ cấp khác', 'Có hộ khẩu thường trú tại địa phương'],
-    tai_lieu: ['CCCD / CMND còn hiệu lực', 'Sổ hộ khẩu hoặc giấy tạm trú', 'Giấy xác nhận hộ nghèo/cận nghèo', 'Ảnh 3x4 (2 ảnh)'],
-  },
-  {
-    id: 2, ten: 'Hỗ trợ người khuyết tật', danh_muc: 'Người khuyết tật',
-    icon: 'accessible', iconBg: 'bg-purple-50', iconColor: 'text-purple-500',
-    status: 'OPEN', han_nop: '30/06/2026', muc_ho_tro: '750.000đ/tháng',
-    con_lai: 98, so_ho_so: 87,
-    mo_ta: 'Hỗ trợ chi phí phục hồi chức năng, mua sắm dụng cụ trợ giúp và hòa nhập cộng đồng cho người khuyết tật có mức độ nặng và đặc biệt nặng.',
-    yeu_cau: ['Có giấy xác nhận khuyết tật mức nặng/đặc biệt nặng', 'Không được hưởng chế độ khuyết tật khác', 'Có hộ khẩu thường trú'],
-    tai_lieu: ['CCCD / CMND', 'Giấy xác nhận mức độ khuyết tật', 'Sổ hộ khẩu', 'Giấy khám sức khoẻ'],
-  },
-  {
-    id: 3, ten: 'Quỹ học bổng trẻ em nghèo', danh_muc: 'Trẻ em',
-    icon: 'school', iconBg: 'bg-emerald-50', iconColor: 'text-emerald-500',
-    status: 'OPEN', han_nop: '31/08/2026', muc_ho_tro: '1.200.000đ/năm',
-    con_lai: 160, so_ho_so: 56,
-    mo_ta: 'Học bổng hỗ trợ học phí và chi phí sinh hoạt cho trẻ em có hoàn cảnh đặc biệt khó khăn đang học phổ thông, giúp các em không phải nghỉ học vì lý do kinh tế.',
-    yeu_cau: ['Đang học từ lớp 1 đến lớp 12', 'Hộ nghèo hoặc cận nghèo', 'Kết quả học tập từ trung bình trở lên', 'Không vi phạm kỷ luật nhà trường'],
-    tai_lieu: ['Học bạ năm gần nhất', 'Sổ hộ khẩu', 'Giấy xác nhận hộ nghèo', 'Đơn xin học bổng có xác nhận của trường'],
-  },
-  {
-    id: 4, ten: 'Trợ cấp thai sản khó khăn', danh_muc: 'Phụ nữ & Trẻ em',
-    icon: 'pregnant_woman', iconBg: 'bg-pink-50', iconColor: 'text-pink-500',
-    status: 'SOON', han_nop: '01/07/2026', muc_ho_tro: '2.000.000đ/lần',
-    con_lai: 0, so_ho_so: 0,
-    mo_ta: 'Hỗ trợ một lần cho phụ nữ sinh con trong hoàn cảnh kinh tế khó khăn, bao gồm chi phí sinh và chăm sóc trẻ sơ sinh trong 6 tháng đầu đời.',
-    yeu_cau: ['Phụ nữ sinh con trong năm 2026', 'Hộ nghèo hoặc cận nghèo', 'Không được hưởng chế độ thai sản BHXH'],
-    tai_lieu: ['Giấy chứng sinh', 'CCCD của mẹ', 'Sổ hộ khẩu', 'Giấy xác nhận hộ nghèo'],
-  },
-  {
-    id: 5, ten: 'Hỗ trợ nhà ở cho hộ nghèo', danh_muc: 'Nhà ở',
-    icon: 'home', iconBg: 'bg-orange-50', iconColor: 'text-orange-500',
-    status: 'CLOSED', han_nop: '31/03/2026', muc_ho_tro: '40.000.000đ/hộ',
-    con_lai: 0, so_ho_so: 203,
-    mo_ta: 'Hỗ trợ kinh phí xây dựng và sửa chữa nhà ở cho hộ nghèo, hộ cận nghèo không có khả năng tự cải thiện điều kiện nhà ở.',
-    yeu_cau: ['Hộ nghèo có nhà tạm bợ, dột nát', 'Chưa được hỗ trợ nhà ở lần nào', 'Có đất ở hợp pháp'],
-    tai_lieu: ['Đơn xin hỗ trợ', 'Giấy tờ đất ở', 'Sổ hộ khẩu', 'Biên bản kiểm tra hiện trạng nhà'],
-  },
-  {
-    id: 6, ten: 'Vay vốn tạo việc làm', danh_muc: 'Việc làm',
-    icon: 'work', iconBg: 'bg-teal-50', iconColor: 'text-teal-500',
-    status: 'OPEN', han_nop: '30/09/2026', muc_ho_tro: 'Vay đến 50 tr.',
-    con_lai: 190, so_ho_so: 41,
-    mo_ta: 'Cho vay ưu đãi lãi suất thấp để hỗ trợ người nghèo, người khuyết tật tự tạo việc làm, phát triển kinh tế hộ gia đình.',
-    yeu_cau: ['Hộ nghèo, cận nghèo hoặc người khuyết tật', 'Có phương án sản xuất kinh doanh khả thi', 'Không có nợ xấu tại tổ chức tín dụng'],
-    tai_lieu: ['Phương án sản xuất kinh doanh', 'CCCD', 'Sổ hộ khẩu', 'Xác nhận hộ nghèo/khuyết tật'],
-  },
-]
-
-const programs = ref(fallbackPrograms)
+const programs = ref([])
+const error = ref(false)
 
 onMounted(async () => {
   loading.value = true
+  error.value = false
   try {
     const res = await programsApi.getAll()
     const list = res.data.content || res.data || []
-    if (list.length) {
-      programs.value = list.map(p => ({
-        id: p.id,
-        ten: p.tenChuongTrinh || p.ten || '',
-        danh_muc: p.danhMuc || 'Trợ cấp',
-        icon: 'volunteer_activism',
-        iconBg: 'bg-primary/10',
-        iconColor: 'text-primary',
-        status: p.trangThai === 'OPEN' || p.trangThai === 'ACTIVE' ? 'OPEN' : p.trangThai === 'UPCOMING' || p.trangThai === 'SOON' ? 'SOON' : 'CLOSED',
-        han_nop: p.ngayKetThuc ? new Date(p.ngayKetThuc).toLocaleDateString('vi-VN') : '—',
-        muc_ho_tro: p.mucHoTro || p.nganSach ? (p.nganSach.toLocaleString() + 'đ') : 'Theo quy định',
-        con_lai: p.ngayKetThuc ? Math.max(0, Math.ceil((new Date(p.ngayKetThuc) - Date.now()) / 86400000)) : 0,
-        so_ho_so: p.soHoSo || 0,
-        mo_ta: p.moTa || '',
-        yeu_cau: p.yeuCau || ['Là công dân Việt Nam', 'Nằm trong đối tượng trợ cấp'],
-        tai_lieu: p.taiLieu || ['CCCD / CMND', 'Đơn xin trợ cấp', 'Sổ hộ khẩu'],
-      }))
-    }
+    programs.value = list.map(p => ({
+      id: p.id,
+      ten: p.tenChuongTrinh || p.ten || '',
+      danh_muc: p.danhMuc || 'Trợ cấp',
+      icon: 'volunteer_activism',
+      iconBg: 'bg-primary/10',
+      iconColor: 'text-primary',
+      status: p.trangThai === 'OPEN' || p.trangThai === 'ACTIVE' ? 'OPEN' : p.trangThai === 'UPCOMING' || p.trangThai === 'SOON' ? 'SOON' : 'CLOSED',
+      han_nop: p.ngayKetThuc ? new Date(p.ngayKetThuc).toLocaleDateString('vi-VN') : '—',
+      muc_ho_tro: p.mucHoTro || (p.nganSach ? (p.nganSach.toLocaleString() + 'đ') : 'Theo quy định'),
+      con_lai: p.ngayKetThuc ? Math.max(0, Math.ceil((new Date(p.ngayKetThuc) - Date.now()) / 86400000)) : 0,
+      so_ho_so: p.soHoSo || 0,
+      mo_ta: p.moTa || '',
+      yeu_cau: p.yeuCau || [],
+      tai_lieu: p.taiLieu || [],
+    }))
   } catch {
-    // Giữ fallback data
+    error.value = true
   } finally {
     loading.value = false
   }

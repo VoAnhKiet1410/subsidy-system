@@ -82,12 +82,12 @@
               <span :class="['px-3 py-1 rounded-full text-xs font-bold', roleBadge(u.vai_tro)]">{{ roleLabel(u.vai_tro) }}</span>
             </td>
             <td class="px-6 py-4 text-slate-400 text-xs">{{ formatDate(u.created_at) }}</td>
-            <td class="px-6 py-4 text-right opacity-0 group-hover:opacity-100 transition-opacity">
+            <td class="px-6 py-4 text-right">
               <div class="flex justify-end gap-2">
                 <button @click="openEdit(u)" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-lg flex items-center gap-1">
                   <span class="material-symbols-outlined text-sm">edit</span>Sửa
                 </button>
-                <button @click="confirmDel(u)" class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold rounded-lg flex items-center gap-1">
+                <button @click="askDelete(u)" class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold rounded-lg flex items-center gap-1">
                   <span class="material-symbols-outlined text-sm">delete</span>
                 </button>
               </div>
@@ -97,7 +97,31 @@
       </table>
     </div>
 
-    <!-- Modal -->
+    <!-- Modal Xác nhận xóa -->
+    <Teleport to="body">
+      <div v-if="delTarget" class="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" @click.self="delTarget = null">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <span class="material-symbols-outlined text-red-600" style="font-variation-settings:'FILL' 1">delete</span>
+            </div>
+            <div>
+              <p class="font-bold text-slate-800">Xóa người dùng?</p>
+              <p class="text-sm text-slate-500">{{ delTarget?.ho_va_ten || delTarget?.ten_dang_nhap }} sẽ bị xóa vĩnh viễn.</p>
+            </div>
+          </div>
+          <div class="flex justify-end gap-3">
+            <button @click="delTarget = null" class="px-4 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-100 rounded-xl">Hủy</button>
+            <button @click="doDelete" :disabled="deleting"
+              class="px-5 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-xl disabled:opacity-60">
+              {{ deleting ? 'Đang xóa...' : 'Xóa' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Modal Thêm/Sửa -->
     <Teleport to="body">
       <div v-if="showModal" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" @click.self="showModal = false">
         <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden">
@@ -170,6 +194,8 @@ const editUser = ref(null)
 const modalSaving = ref(false)
 const modalError = ref('')
 const mf = ref({ ho_va_ten:'', ten_dang_nhap:'', email:'', so_dien_thoai:'', vai_tro:'CITIZEN', mat_khau:'' })
+const delTarget = ref(null)
+const deleting = ref(false)
 
 const roleFilters = [
   { val:'ALL', label:'Tất cả' }, { val:'ADMIN', label:'Admin' },
@@ -203,20 +229,31 @@ onMounted(async () => {
       vai_tro: (u.roles && u.roles.length > 0) ? u.roles[0] : 'CITIZEN',
       created_at: u.createdAt || ''
     }))
-  } catch {
-    users.value = [
-      { id:1, ten_dang_nhap:'admin', ho_va_ten:'Trần Quản Trị', email:'admin@system.vn', so_dien_thoai:'0901234567', vai_tro:'ADMIN', created_at: new Date(Date.now()-86400000*30).toISOString() },
-      { id:2, ten_dang_nhap:'officer1', ho_va_ten:'Lê Cán Bộ', email:'canbo@system.vn', so_dien_thoai:'0911222333', vai_tro:'OFFICER', created_at: new Date(Date.now()-86400000*20).toISOString() },
-      { id:3, ten_dang_nhap:'accountant1', ho_va_ten:'Phạm Kế Toán', email:'ketoan@system.vn', so_dien_thoai:'0922333444', vai_tro:'ACCOUNTANT', created_at: new Date(Date.now()-86400000*15).toISOString() },
-      { id:4, ten_dang_nhap:'citizen1', ho_va_ten:'Nguyễn Văn A', email:'nva@gmail.com', so_dien_thoai:'0988777666', vai_tro:'CITIZEN', created_at: new Date(Date.now()-86400000*5).toISOString() },
-      { id:5, ten_dang_nhap:'citizen2', ho_va_ten:'Trần Thị B', email:'ttb@gmail.com', so_dien_thoai:'0977666555', vai_tro:'CITIZEN', created_at: new Date(Date.now()-86400000*3).toISOString() },
-    ]
+  } catch (e) {
+    console.error('Lỗi tải danh sách người dùng:', e)
+    ui.showError('Không thể tải danh sách người dùng. Vui lòng thử lại.')
+    users.value = []
   } finally { loading.value = false }
 })
 
 function openCreate() { editUser.value=null; mf.value={ ho_va_ten:'',ten_dang_nhap:'',email:'',so_dien_thoai:'',vai_tro:'CITIZEN',mat_khau:'' }; modalError.value=''; showModal.value=true }
 function openEdit(u) { editUser.value=u; mf.value={...u}; modalError.value=''; showModal.value=true }
-function confirmDel(u) { if(confirm(`Xóa người dùng "${u.ho_va_ten || u.ten_dang_nhap}"?`)) { users.value = users.value.filter(x=>x.id!==u.id); ui.showSuccess('Đã xóa!') } }
+function askDelete(u) { delTarget.value = u }
+
+async function doDelete() {
+  if (!delTarget.value) return
+  deleting.value = true
+  try {
+    await http.delete(`/users/${delTarget.value.id}`)
+    users.value = users.value.filter(x => x.id !== delTarget.value.id)
+    ui.showSuccess('Đã xóa người dùng!')
+    delTarget.value = null
+  } catch (e) {
+    ui.showError(e.response?.data?.message || 'Xóa thất bại. Vui lòng thử lại.')
+  } finally {
+    deleting.value = false
+  }
+}
 
 async function saveUser() {
   if (!mf.value.ten_dang_nhap || !mf.value.ho_va_ten) { modalError.value='Vui lòng nhập đủ thông tin bắt buộc.'; return }

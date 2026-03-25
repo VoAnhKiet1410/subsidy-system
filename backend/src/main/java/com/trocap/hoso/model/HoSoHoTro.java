@@ -27,6 +27,8 @@ public class HoSoHoTro {
     @Id
     private String id;
 
+    private String maHoSo;                // Mã hồ sơ tuần tự: HS-0001, HS-0002...
+
     @Indexed
     private String nguoiDungId;           // → ref tới users (người nộp)
 

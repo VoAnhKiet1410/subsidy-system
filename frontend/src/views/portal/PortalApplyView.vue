@@ -270,16 +270,9 @@ onMounted(async () => {
     const list = r.data?.content || r.data || []
     if (list.length > 0) {
       beneficiaryGroups.value = list
-    } else {
-      throw new Error('empty array')
     }
   } catch(e) {
-    beneficiaryGroups.value = [
-      { id: '65f01', name: 'Người cao tuổi cô đơn' },
-      { id: '65f02', name: 'Người khuyết tật đặc biệt nặng' },
-      { id: '65f03', name: 'Trẻ em mồ côi cả cha lẫn mẹ' },
-      { id: '65f04', name: 'Hộ nghèo / Cận nghèo' }
-    ]
+    
   }
 })
 
@@ -294,32 +287,27 @@ const rules = {
 const { errors: formErrors, validate, validateField: vField } = useFormValidation(rules)
 
 // Load programs từ API
-const fallbackPrograms = [
-  { id:1, ten:'Hỗ trợ người cao tuổi 2026',  han_nop:'31/12/2026', mo_ta:'Hỗ trợ hàng tháng cho người trên 60 tuổi có hoàn cảnh khó khăn.' },
-  { id:2, ten:'Hỗ trợ người khuyết tật',      han_nop:'30/06/2026', mo_ta:'Hỗ trợ chi phí phục hồi chức năng và hòa nhập cộng đồng.' },
-  { id:3, ten:'Quỹ học bổng trẻ em nghèo',    han_nop:'31/08/2026', mo_ta:'Hỗ trợ học phí và chi phí sinh hoạt cho trẻ em có hoàn cảnh.' },
-]
-const programs = ref(fallbackPrograms)
+const programs = ref([])
 
 async function loadPrograms() {
   loadingPrograms.value = true
   try {
     const res = await http.get('/programs', { params: { trangThai: 'ACTIVE', size: 100 } })
     const list = res.data?.content || res.data || []
-    if (list.length) {
-      programs.value = list.map(p => ({
-        id: p.id,
-        ten: p.tenChuongTrinh || p.ten_chuong_trinh || p.ten,
-        han_nop: p.ngayKetThuc || p.ngay_ket_thuc ? new Date(p.ngayKetThuc || p.ngay_ket_thuc).toLocaleDateString('vi-VN') : '—',
-        mo_ta: p.moTa || p.mo_ta || '',
-      }))
-    }
+    programs.value = list.map(p => ({
+      id: p.id,
+      ten: p.tenChuongTrinh || p.ten_chuong_trinh || p.ten,
+      han_nop: (p.ngayKetThuc || p.ngay_ket_thuc) ? new Date(p.ngayKetThuc || p.ngay_ket_thuc).toLocaleDateString('vi-VN') : '—',
+      mo_ta: p.moTa || p.mo_ta || '',
+    }))
   } catch (err) {
     console.error(err)
+    ui.showError('Không thể tải danh sách chương trình. Vui lòng thử lại.')
   } finally {
     loadingPrograms.value = false
   }
 }
+
 
 const selectedProgram = computed(() => programs.value.find(p => p.id === form.value.chuong_trinh_id))
 
@@ -400,20 +388,21 @@ async function next() {
       moTa: form.value.ly_do || ''
     }
 
+    // Bước 1: Tạo hồ sơ (trạng thái DRAFT)
     const res = await applicationsApi.create(payloadJson)
-    const appId = res.data?.id || res.data?.ma_ho_so
-    
-    // Mock file upload as backend doesn't support it directly in create
-    // If backend supports file upload later, we can do it here
+    const appId = res.data?.id
 
-    newAppId.value = appId || Math.floor(Math.random()*900 + 1100)
+    if (!appId) throw new Error('Không lấy được ID hồ sơ vừa tạo')
+
+    // Bước 2: Submit hồ sơ (DRAFT → SUBMITTED)
+    await applicationsApi.submit(appId)
+
+    newAppId.value = appId
     submitted.value = true
-    ui.showSuccess('Nộp hồ sơ thành công!')
+    ui.showSuccess('Nộp hồ sơ thành công! Hồ sơ đang chờ xét duyệt.')
   } catch (err) {
-    // Fallback: vẫn hiện thành công nếu backend chưa sẵn sàng
-    newAppId.value = Math.floor(Math.random()*900 + 1100)
-    submitted.value = true
-    ui.showInfo('Hồ sơ đã được ghi nhận (chế độ offline)')
+    const msg = err?.response?.data?.message || 'Không thể nộp hồ sơ. Vui lòng thử lại.'
+    ui.showError(msg)
   } finally {
     submitting.value = false
   }

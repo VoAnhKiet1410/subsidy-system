@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="p-8 space-y-8 max-w-5xl mx-auto">
     <!-- Header -->
     <div class="flex items-end justify-between">
@@ -215,6 +215,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { authStore } from '../stores/auth'
 import { useUI } from '../stores/ui'
+import http from '../api/http'
 
 const ui = useUI()
 const saving = ref(false)
@@ -291,14 +292,18 @@ async function saveProfile() {
   if (!form.value.fullName.trim()) { updateError.value = 'Vui lòng nhập họ và tên.'; return }
   saving.value = true; updateError.value = ''; updateSuccess.value = false
   try {
-    // await usersApi.updateProfile(form.value)
-    await new Promise(r => setTimeout(r, 800))
+    await http.put('/auth/profile', {
+      fullName: form.value.fullName,
+      email: form.value.email,
+      phone: form.value.so_dien_thoai,
+      address: form.value.dia_chi,
+    })
     authStore.user = { ...authStore.user, fullName: form.value.fullName, email: form.value.email }
     updateSuccess.value = true
     setTimeout(() => updateSuccess.value = false, 3000)
     ui.showSuccess('Cập nhật thông tin thành công!')
   } catch (e) {
-    updateError.value = 'Không thể cập nhật. Vui lòng thử lại.'
+    updateError.value = e?.response?.data?.message || 'Không thể cập nhật. Vui lòng thử lại.'
   } finally { saving.value = false }
 }
 
@@ -308,11 +313,16 @@ async function changePassword() {
   if (pwForm.value.newPw !== pwForm.value.confirm) { pwError.value = 'Mật khẩu xác nhận không khớp.'; return }
   savingPw.value = true
   try {
-    await new Promise(r => setTimeout(r, 800))
+    await http.put('/auth/change-password', {
+      currentPassword: pwForm.value.current,
+      newPassword: pwForm.value.newPw,
+    })
     pwForm.value = { current: '', newPw: '', confirm: '' }
     showPasswordForm.value = false
     ui.showSuccess('Đã đổi mật khẩu thành công!')
-  } catch { pwError.value = 'Mật khẩu hiện tại không đúng.' } finally { savingPw.value = false }
+  } catch (e) {
+    pwError.value = e?.response?.data?.message || 'Mật khẩu hiện tại không đúng.'
+  } finally { savingPw.value = false }
 }
 
 function triggerAvatarUpload() { avatarInput.value?.click() }

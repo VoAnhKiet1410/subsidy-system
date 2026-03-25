@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"},{"v":{"$numberInt":"2"},"key":{"nguonQuyId":{"$numberInt":"1"}},"name":"nguonQuyId"},{"v":{"$numberInt":"2"},"key":{"trangThai":{"$numberInt":"1"}},"name":"trangThai"}],"uuid":"419c398d51f94a2b88c7904b3a9f6d81","collectionName":"programs","type":"collection"}

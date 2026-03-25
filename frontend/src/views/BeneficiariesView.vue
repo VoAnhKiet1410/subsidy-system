@@ -158,10 +158,7 @@
                   <td class="px-4 py-4">
                     <div class="flex items-center gap-2">
                       <span v-if="app.trang_thai === 'PENDING'" class="material-symbols-outlined text-amber-500 text-sm flex-shrink-0" style="font-variation-settings:'FILL' 1;" title="Chưa duyệt — Ưu tiên">star</span>
-                      <div>
-                        <p class="font-black text-slate-800">#HS-{{ app.id }}</p>
-                        <p class="text-[10px] text-slate-400">ID: {{ app.id }}</p>
-                      </div>
+                        <p class="font-black text-slate-800 text-sm">{{ app.maHoSo || ('#HS-' + app.id?.substring(0, 8)) }}</p>
                     </div>
                   </td>
                   <!-- Người nộp -->
@@ -177,8 +174,11 @@
                     </div>
                   </td>
                   <!-- Đối tượng -->
-                  <td class="px-4 py-4">
-                    <span class="px-2 py-1 bg-slate-100 text-slate-600 text-[11px] font-semibold rounded-lg">
+                  <td class="px-4 py-4 max-w-[150px]">
+                    <span
+                      class="block truncate px-2 py-1 bg-slate-100 text-slate-700 text-[11px] font-semibold rounded-lg"
+                      :title="app.doi_tuong?.ten_doi_tuong || ''"
+                    >
                       {{ app.doi_tuong?.ten_doi_tuong || '—' }}
                     </span>
                   </td>
@@ -426,6 +426,57 @@
         </div>
       </div>
     </Teleport>
+    <!-- ═══ MODAL TẠO HỒ SƠ MỚI ═══ -->
+    <Teleport to="body">
+      <div v-if="showCreateModal" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" @click.self="showCreateModal = false">
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden animate__fadeInUp">
+          <!-- Header -->
+          <div class="bg-gradient-to-r from-primary to-blue-600 px-8 py-5 text-white">
+            <h3 class="text-lg font-black">Tạo hồ sơ mới</h3>
+            <p class="text-sm opacity-80 mt-0.5">Tạo hồ sơ đề nghị hỗ trợ cho đối tượng</p>
+          </div>
+          <!-- Body -->
+          <div class="px-8 py-6 space-y-4 max-h-[60vh] overflow-y-auto">
+            <!-- Chương trình -->
+            <div>
+              <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Chương trình <span class="text-red-400">*</span></label>
+              <select v-model="createForm.chuongTrinhId" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20">
+                <option value="">— Chọn chương trình —</option>
+                <option v-for="p in programs" :key="p.id" :value="p.id">{{ p.ten_chuong_trinh }}</option>
+              </select>
+            </div>
+            <!-- Đối tượng hưởng trợ cấp -->
+            <div>
+              <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Đối tượng hưởng <span class="text-red-400">*</span></label>
+              <select v-model="createForm.doiTuongId" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20">
+                <option value="">— Chọn đối tượng —</option>
+                <option v-for="b in beneficiaries" :key="b.id" :value="b.id">{{ b.fullName }} — {{ b.category || 'N/A' }}</option>
+              </select>
+              <p v-if="!beneficiaries.length" class="text-xs text-amber-500 mt-1">Chưa có đối tượng. Vui lòng tạo đối tượng trước.</p>
+            </div>
+            <!-- Mô tả / Ghi chú -->
+            <div>
+              <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Mô tả</label>
+              <textarea v-model="createForm.moTa" rows="3" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20" placeholder="Ghi chú thêm cho hồ sơ..."></textarea>
+            </div>
+            <!-- Số tiền đề xuất -->
+            <div>
+              <label class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Số tiền đề xuất (VNĐ)</label>
+              <input v-model.number="createForm.soTienDeXuat" type="number" min="0" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20" placeholder="Nhập số tiền (tuỳ chọn)">
+            </div>
+          </div>
+          <!-- Footer -->
+          <div class="px-8 py-5 bg-slate-50 flex justify-end gap-3">
+            <button @click="showCreateModal = false" class="px-5 py-2.5 text-sm font-semibold text-slate-500 hover:bg-slate-100 rounded-xl">Hủy</button>
+            <button @click="submitCreateForm" :disabled="!createForm.chuongTrinhId || !createForm.doiTuongId || creatingApp"
+              class="px-6 py-2.5 bg-primary text-white text-sm font-bold rounded-xl hover:opacity-90 shadow-md disabled:opacity-50">
+              <span v-if="creatingApp" class="material-symbols-outlined animate-spin text-sm mr-1">progress_activity</span>
+              {{ creatingApp ? 'Đang tạo...' : 'Tạo hồ sơ' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
   </div>
 </template>
@@ -478,9 +529,9 @@ const paginatedApps = computed(() => {
   return filteredApps.value.slice(s, s+pageSize)
 })
 
-// ─── Select options (mock) ───────────────────────────
-const programs   = ref([{ id:1, ten_chuong_trinh:'Quỹ BTXH Tỉnh 2026' }, { id:2, ten_chuong_trinh:'Cứu Trợ Khẩn Cấp' }])
-const categories = ref([{ id:1, ten_doi_tuong:'Người cao tuổi' }, { id:2, ten_doi_tuong:'Trẻ em nghèo' }, { id:3, ten_doi_tuong:'Người khuyết tật' }])
+// ─── Select options (loaded from API) ────────────────
+const programs   = ref([])
+const categories = ref([])
 
 const statusOptions = [
   { val:'PENDING',   label:'Chờ duyệt' },
@@ -557,6 +608,32 @@ onUnmounted(() => document.removeEventListener('click', closeMenu))
 // ─── Actions ─────────────────────────────────────────
 const canReview = computed(() => authStore.isAdmin || authStore.isReviewer)
 const showCreateModal = ref(false)
+const creatingApp = ref(false)
+const beneficiaries = ref([])
+const createForm = ref({ chuongTrinhId: '', doiTuongId: '', moTa: '', soTienDeXuat: null })
+
+async function submitCreateForm() {
+  creatingApp.value = true
+  try {
+    const payload = {
+      chuongTrinhId: createForm.value.chuongTrinhId,
+      doiTuongId: createForm.value.doiTuongId,
+    }
+    if (createForm.value.moTa) payload.moTa = createForm.value.moTa
+    if (createForm.value.soTienDeXuat) payload.soTienDeXuat = createForm.value.soTienDeXuat
+    await http.post('/applications', payload)
+    ui.showSuccess('Tạo hồ sơ thành công!')
+    showCreateModal.value = false
+    createForm.value = { chuongTrinhId: '', doiTuongId: '', moTa: '', soTienDeXuat: null }
+    // Reload data
+    window.location.reload()
+  } catch (e) {
+    const msg = e.response?.data?.message || e.response?.data?.error || e.message
+    ui.showError('Tạo hồ sơ thất bại: ' + msg)
+  } finally {
+    creatingApp.value = false
+  }
+}
 
 const rejectModal = ref({ show: false, app: null, reason: '' })
 function openRejectModal(app) { rejectModal.value = { show: true, app, reason: '' }; openMenuId.value = null }
@@ -594,86 +671,81 @@ const avatarBgs = ['bg-blue-100 text-blue-700','bg-emerald-100 text-emerald-700'
 
 function statusStyle(s) {
   return {
-    PENDING:   { badge:'bg-amber-100 text-amber-700',   bg:'bg-amber-100',   icon:'text-amber-600',   sym:'hourglass_top', gradient:'bg-gradient-to-r from-amber-400 to-amber-500',   heroBg:'bg-amber-50' },
-    REVIEWING: { badge:'bg-blue-100 text-blue-700',     bg:'bg-blue-100',    icon:'text-blue-600',    sym:'manage_search', gradient:'bg-gradient-to-r from-blue-400 to-blue-500',     heroBg:'bg-blue-50' },
-    APPROVED:  { badge:'bg-emerald-100 text-emerald-700',bg:'bg-emerald-100',icon:'text-emerald-600', sym:'check_circle',  gradient:'bg-gradient-to-r from-emerald-400 to-emerald-500',heroBg:'bg-emerald-50' },
-    REJECTED:  { badge:'bg-red-100 text-red-700',       bg:'bg-red-100',     icon:'text-red-600',     sym:'cancel',        gradient:'bg-gradient-to-r from-red-400 to-red-500',       heroBg:'bg-red-50' },
+    PENDING:      { badge:'bg-amber-100 text-amber-700',    bg:'bg-amber-100',    icon:'text-amber-600',    sym:'hourglass_top',  gradient:'bg-gradient-to-r from-amber-400 to-amber-500',    heroBg:'bg-amber-50'   },
+    DRAFT:        { badge:'bg-slate-200 text-slate-600',    bg:'bg-slate-100',    icon:'text-slate-500',    sym:'draft',          gradient:'bg-gradient-to-r from-slate-300 to-slate-400',    heroBg:'bg-slate-50'   },
+    SUBMITTED:    { badge:'bg-blue-100 text-blue-700',      bg:'bg-blue-100',     icon:'text-blue-600',     sym:'send',           gradient:'bg-gradient-to-r from-blue-400 to-blue-500',      heroBg:'bg-blue-50'    },
+    REVIEWING:    { badge:'bg-blue-100 text-blue-700',      bg:'bg-blue-100',     icon:'text-blue-600',     sym:'manage_search',  gradient:'bg-gradient-to-r from-blue-400 to-blue-500',      heroBg:'bg-blue-50'    },
+    UNDER_REVIEW: { badge:'bg-purple-100 text-purple-700',  bg:'bg-purple-100',   icon:'text-purple-600',   sym:'manage_search',  gradient:'bg-gradient-to-r from-purple-400 to-purple-500',  heroBg:'bg-purple-50'  },
+    APPROVED:     { badge:'bg-emerald-100 text-emerald-700',bg:'bg-emerald-100',  icon:'text-emerald-600',  sym:'check_circle',   gradient:'bg-gradient-to-r from-emerald-400 to-emerald-500',heroBg:'bg-emerald-50' },
+    REJECTED:     { badge:'bg-red-100 text-red-700',        bg:'bg-red-100',      icon:'text-red-600',      sym:'cancel',         gradient:'bg-gradient-to-r from-red-400 to-red-500',        heroBg:'bg-red-50'     },
+    PAID:         { badge:'bg-teal-100 text-teal-700',      bg:'bg-teal-100',     icon:'text-teal-600',     sym:'payments',       gradient:'bg-gradient-to-r from-teal-400 to-teal-500',      heroBg:'bg-teal-50'    },
   }[s] || { badge:'bg-slate-100 text-slate-600', bg:'bg-slate-100', icon:'text-slate-500', sym:'help', gradient:'bg-slate-300', heroBg:'bg-slate-50' }
 }
-function statusLabel(s) { return { PENDING:'Chờ duyệt', REVIEWING:'Đang xét', APPROVED:'Phê duyệt', REJECTED:'Từ chối' }[s] || s }
+function statusLabel(s) { return { DRAFT:'Bản nháp', SUBMITTED:'Đã nộp', PENDING:'Chờ duyệt', REVIEWING:'Đang xét', UNDER_REVIEW:'Đang xét', APPROVED:'Phê duyệt', REJECTED:'Từ chối', PAID:'Đã chi trả' }[s] || s }
 function payStatusStyle(s) { return { PENDING:'bg-slate-100 text-slate-500', PROCESSING:'bg-amber-100 text-amber-700', COMPLETED:'bg-emerald-100 text-emerald-700', FAILED:'bg-red-100 text-red-600' }[s] || 'bg-slate-100 text-slate-400' }
 function payStatusLabel(s) { return { PENDING:'Chưa chi', PROCESSING:'Đang xử lý', COMPLETED:'Đã chi', FAILED:'Thất bại' }[s] || '—' }
 function formatDate(d) { if (!d) return '—'; return new Date(d).toLocaleDateString('vi-VN') }
 
 // ─── Load data ────────────────────────────────────────
-const chTrinhMock  = [{ id:1, ten_chuong_trinh:'Quỹ BTXH Tỉnh 2026' }, { id:2, ten_chuong_trinh:'Cứu Trợ Khẩn Cấp' }, { id:3, ten_chuong_trinh:'Hỗ trợ Mùa Lũ' }]
-const doiTuongMock = [{ id:1, ten_doi_tuong:'Người cao tuổi' }, { id:2, ten_doi_tuong:'Trẻ em nghèo' }, { id:3, ten_doi_tuong:'Người khuyết tật' }]
-const namesMock    = ['Nguyễn Thị Hoa','Trần Văn Nam','Lê Thị Mai','Phạm Đình Khoa','Võ Minh Đức','Bùi Thị Lan','Đặng Văn Hùng','Hoàng Thị Thu','Phan Văn Tuấn','Lý Thị Bích']
-const statuses     = ['PENDING','REVIEWING','APPROVED','REJECTED']
-const payStatuses  = ['PENDING','PROCESSING','COMPLETED']
-
 onMounted(async () => {
   try {
-    const [resApps, resUsers, resProgs, resCats] = await Promise.all([
-      http.get('/applications', { params: { page: 0, size: 200 } }),
-      http.get('/users', { params: { size: 1000 } }).catch(()=>({data:[]})),
-      http.get('/programs', { params: { size: 500 } }).catch(()=>({data:[]})),
-      http.get('/beneficiary-groups', { params: { size: 1000 } }).catch(()=>({data:[]}))
+    // Load filter options + applications in parallel
+    const [resApps, resUsers, resProgs, resCats, resBenef] = await Promise.all([
+      authStore.isViewer
+        ? http.get('/applications/my', { params: { page: 0, size: 200 } })
+        : http.get('/applications', { params: { page: 0, size: 200 } }),
+      http.get('/users', { params: { size: 1000 } }).catch(() => ({ data: [] })),
+      http.get('/programs', { params: { size: 500 } }).catch(() => ({ data: [] })),
+      http.get('/beneficiary-groups', { params: { size: 1000 } }).catch(() => ({ data: [] })),
+      http.get('/beneficiaries', { params: { size: 1000 } }).catch(() => ({ data: [] }))
     ])
 
-    const usersList = resUsers.data?.content || resUsers.data || [];
-    const progsList = resProgs.data?.content || resProgs.data || [];
-    const catsList = resCats.data?.content || resCats.data || [];
+    const usersList = resUsers.data?.content || resUsers.data || []
+    const progsList = resProgs.data?.content || resProgs.data || []
+    const catsList  = resCats.data?.content || resCats.data || []
+    const benefList = resBenef.data?.content || resBenef.data || []
+    beneficiaries.value = benefList
 
-    const userMap = Object.fromEntries(usersList.map(u => [u.id, u.fullName || u.username]));
-    const userMapByUsername = Object.fromEntries(usersList.map(u => [u.username, u.fullName || u.username]));
-    const userEmailMap = Object.fromEntries(usersList.map(u => [u.id, u.email]));
-    const userEmailMapByUsername = Object.fromEntries(usersList.map(u => [u.username, u.email]));
-    const progMap = Object.fromEntries(progsList.map(p => [p.id, p.tenChuongTrinh || p.name || p.ten_chuong_trinh || '—']));
-    const catMap = Object.fromEntries(catsList.map(c => [c.id, c.fullName || c.name || c.category || c.ten_doi_tuong || '—']));
+    // Populate filter options from API
+    programs.value   = progsList.map(p => ({ id: p.id, ten_chuong_trinh: p.tenChuongTrinh || p.name || '—' }))
+    categories.value = catsList.map(c => ({ id: c.id, ten_doi_tuong: c.fullName || c.name || c.category || '—' }))
 
-    apps.value = (resApps.data?.content || resApps.data || []).map((a, i) => {
-      const realName = userMap[a.nguoiDungId] || userMapByUsername[a.nguoiDungId] || 'Người nộp #' + (a.nguoiDungId||'').substring(0,4);
-      const realEmail = userEmailMap[a.nguoiDungId] || userEmailMapByUsername[a.nguoiDungId];
+    const userMap = Object.fromEntries(usersList.map(u => [u.id, u.fullName || u.username]))
+    const userMapByUsername = Object.fromEntries(usersList.map(u => [u.username, u.fullName || u.username]))
+    const userEmailMap = Object.fromEntries(usersList.map(u => [u.id, u.email]))
+    const userEmailMapByUsername = Object.fromEntries(usersList.map(u => [u.username, u.email]))
+    const progMap = Object.fromEntries(progsList.map(p => [p.id, p.tenChuongTrinh || p.name || '—']))
+    // catMap: dùng benefList từ /beneficiaries (đây mới là đối tượng thật trong hồ sơ)
+    const catMap  = Object.fromEntries(benefList.map(b => [b.id, b.fullName || b.tenDoiTuong || b.name || '—']))
+
+    const appsList = (resApps.data?.content || resApps.data || []).map((a, i) => {
+      const realName  = userMap[a.nguoiDungId] || userMapByUsername[a.nguoiDungId] || 'Người nộp #' + (a.nguoiDungId || '').substring(0, 4)
+      const realEmail = userEmailMap[a.nguoiDungId] || userEmailMapByUsername[a.nguoiDungId]
       return {
         ...a,
         ten_nguoi_nop: realName,
         nguoi_dung: { email: realEmail },
-        initials: (realName || 'XX').split(' ').slice(-2).map(w=>w[0]).join('').toUpperCase(),
+        initials: (realName || 'XX').split(' ').slice(-2).map(w => w[0]).join('').toUpperCase(),
         avatarBg: avatarBgs[i % avatarBgs.length],
-        chuong_trinh: { ten_chuong_trinh: progMap[a.chuongTrinhId] || '—' },
-        doi_tuong: { ten_doi_tuong: catMap[a.doiTuongId] || '—' },
-        diem_uu_tien: a.aiReview ? a.aiReview.diemUuTien : (a.diemUuTien || 85),
-        do_tin_cay: a.aiReview ? a.aiReview.doTinCay : (a.doTinCay || 95),
+        chuong_trinh: { id: a.chuongTrinhId, ten_chuong_trinh: progMap[a.chuongTrinhId] || '—' },
+        doi_tuong: { id: a.doiTuongId, ten_doi_tuong: catMap[a.doiTuongId] || '—' },
+        diem_uu_tien: a.aiReview ? a.aiReview.diemUuTien : (a.diemUuTien || null),
+        do_tin_cay: a.aiReview ? a.aiReview.doTinCay : (a.doTinCay || null),
         ai_nhan_xet: a.aiReview ? a.aiReview.nhanXet : null,
         trang_thai_chi_tra: a.paymentStatus || 'PENDING',
         trang_thai: a.trangThai || 'PENDING',
         ngay_nop_ho_so: a.ngayNopHoSo || a.createdAt
       }
     })
-  } catch {
-    // mock
-    apps.value = Array.from({ length: 35 }, (_, i) => {
-      const name = namesMock[i % namesMock.length]
-      const aiScore = Math.floor(Math.random()*100)
-      // Điểm tin cậy liên hệ với điểm AI: dao động ±8% quanh diem_uu_tien, clamp 50-99
-      const confidence = Math.min(99, Math.max(50, aiScore + Math.floor((Math.random()-0.5)*16)))
-      return {
-        id: i+1, ten_nguoi_nop: name,
-        initials: name.split(' ').slice(-2).map(w=>w[0]).join('').toUpperCase(),
-        avatarBg: avatarBgs[i % avatarBgs.length],
-        trang_thai: statuses[i % statuses.length],
-        chuong_trinh: chTrinhMock[i % chTrinhMock.length],
-        doi_tuong: doiTuongMock[i % doiTuongMock.length],
-        ngay_nop_ho_so: new Date(Date.now()-Math.random()*86400000*30).toISOString().slice(0,10),
-        diem_uu_tien: aiScore,
-        do_tin_cay: confidence,
-        ai_nhan_xet: i%3===0 ? 'Hồ sơ đầy đủ, tình trạng phù hợp với tiêu chí xét duyệt.' : null,
-        trang_thai_chi_tra: payStatuses[i % payStatuses.length],
-        documents: i%2===0 ? [{ id:1, ten_tai_lieu:'CMND/CCCD', loai_tai_lieu:'identity', trang_thai_ocr:'DONE' }, { id:2, ten_tai_lieu:'Hộ khẩu', loai_tai_lieu:'household', trang_thai_ocr:'PENDING' }] : [],
-      }
-    })
-    if (authStore.isViewer) myApps.value = apps.value.slice(0, 3)
+
+    if (authStore.isViewer) {
+      myApps.value = appsList
+    } else {
+      apps.value = appsList
+    }
+  } catch (e) {
+    console.error('Lỗi tải dữ liệu hồ sơ:', e)
+    ui.showError('Không thể tải dữ liệu hồ sơ. Vui lòng thử lại.')
   }
   loading.value = false
 })

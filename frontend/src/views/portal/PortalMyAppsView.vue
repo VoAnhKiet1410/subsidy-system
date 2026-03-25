@@ -70,12 +70,6 @@ const timelineSteps = [
   { icon:'check_circle',  label:'Kết quả' },
 ]
 
-const fallbackApps = [
-  { id:1001, ten_chuong_trinh:'Hỗ trợ người cao tuổi 2026', trang_thai:'APPROVED', ngay_nop:'2026-01-10', step:4 },
-  { id:1002, ten_chuong_trinh:'Quỹ hỗ trợ người khuyết tật', trang_thai:'PENDING',  ngay_nop:'2026-02-20', step:2 },
-  { id:1003, ten_chuong_trinh:'Hỗ trợ trẻ em có hoàn cảnh',  trang_thai:'REJECTED',  ngay_nop:'2025-11-05', step:3 },
-]
-
 const apps = ref([])
 
 onMounted(async () => {
@@ -101,7 +95,7 @@ onMounted(async () => {
           : ['APPROVED', 'REJECTED', 'PAID'].includes(a.trangThai) ? 4 : 1
     }))
   } catch {
-    apps.value = fallbackApps
+    apps.value = []
   } finally {
     loading.value = false
   }

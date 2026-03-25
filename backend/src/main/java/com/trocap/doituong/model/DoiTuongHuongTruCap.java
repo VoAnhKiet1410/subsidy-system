@@ -20,7 +20,6 @@ public class DoiTuongHuongTruCap {
     @Id
     private String id;
 
-    @Indexed(unique = true)
     private String code;
 
     private String fullName;

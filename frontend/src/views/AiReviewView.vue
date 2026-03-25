@@ -469,14 +469,16 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useUI } from '../stores/ui'
+import http from '../api/http'
 
 const ui = useUI()
 const rightTab    = ref('AI')
 const qSearch     = ref('')
 const selectedApp = ref(null)
 const selectedDoc = ref(null)
+const loadingQueue = ref(true)
 
 // ─── Modals ──────────────────────────────────────────
 const manualModal = ref({ show: false, action: '', note: '' })
@@ -492,46 +494,75 @@ const docTypes = [
   { value: 'khac',      label: 'Tài liệu khác',         desc: 'Chứng minh hoàn cảnh' },
 ]
 
-const MOCK_DOCS_1 = [
-  { id:1, ten_tai_lieu:'CCCD', loai_tai_lieu:'Giấy tờ tùy thân', loai_file:'image/jpeg', trang_thai_ocr:'DONE', kich_thuoc:'1.2 MB',
-    ocr_text:'HO VÀ TÊN: NGUYỄN THỊ HOA\nSố CCCD: 079123456789\nNgày sinh: 01/01/1960\nGiới tính: Nữ\nQuê quán: Đà Nẵng\nNơi TT: 123 Nguyễn Văn Linh, Đà Nẵng',
-    extracted_fields: [{ key:'Họ tên', value:'Nguyễn Thị Hoa' }, { key:'Số CCCD', value:'079123456789' }, { key:'Ngày sinh', value:'01/01/1960' }, { key:'Nơi TT', value:'Đà Nẵng' }],
-  },
-  { id:2, ten_tai_lieu:'Hộ khẩu', loai_tai_lieu:'Hộ khẩu', loai_file:'application/pdf', trang_thai_ocr:'DONE', kich_thuoc:'3.1 MB', ocr_text:null, extracted_fields:[] },
-  { id:3, ten_tai_lieu:'Xác nhận thu nhập', loai_tai_lieu:'Tài chính', loai_file:'application/pdf', trang_thai_ocr:'PENDING', kich_thuoc:'842 KB', ocr_text:null, extracted_fields:[] },
-]
+// ─── Queue loaded from API ───────────────────────────
+const queue = ref([])
 
-const queue = ref([
-  { id:1001, ten_nguoi_nop:'Nguyễn Thị Hoa',  diem_uu_tien:87, documents: MOCK_DOCS_1,
-    tags:[{ label:'Ưu tiên cao', color:'bg-amber-100 text-amber-700', full:'bg-amber-50 text-amber-700 border-amber-200', icon:'star' },
-          { label:'Đủ tài liệu', color:'bg-emerald-100 text-emerald-700', full:'bg-emerald-50 text-emerald-700 border-emerald-200', icon:'check_circle' }],
-    danh_gia_ai:{ diem_uu_tien:87, do_tin_cay:85, de_xuat:'APPROVE',
-      nhan_xet:'Hồ sơ đầy đủ và hợp lệ. Người nộp đáp ứng đủ điều kiện theo tiêu chí của chương trình. Điểm ưu tiên cao do hoàn cảnh khó khăn và tuổi tác. Khuyến nghị phê duyệt.',
-      cac_yeu_to:[{ name:'Tính đầy đủ hồ sơ', score:95 }, { name:'Điều kiện thu nhập', score:88 }, { name:'Điều kiện đối tượng', score:92 }, { name:'Xác thực giấy tờ', score:85 }],
-      rui_ro:[], created_at: new Date().toISOString() }
-  },
-  { id:1002, ten_nguoi_nop:'Trần Văn Minh', diem_uu_tien:54, documents:[
-      { id:4, ten_tai_lieu:'CCCD', loai_tai_lieu:'Giấy tờ tùy thân', loai_file:'image/jpeg', trang_thai_ocr:'DONE', kich_thuoc:'980 KB', ocr_text:null, extracted_fields:[] },
-    ],
-    tags:[{ label:'Thiếu tài liệu', color:'bg-red-100 text-red-600', full:'bg-red-50 text-red-600 border-red-200', icon:'warning' }],
-    danh_gia_ai:{ diem_uu_tien:54, do_tin_cay:52, de_xuat:'REVIEW',
-      nhan_xet:'Hồ sơ còn thiếu giấy xác nhận thu nhập và hộ khẩu. Không đủ cơ sở để đánh giá điều kiện tài chính. Cần bổ sung trước khi xét duyệt.',
-      cac_yeu_to:[{ name:'Tính đầy đủ hồ sơ', score:45 }, { name:'Điều kiện thu nhập', score:60 }, { name:'Điều kiện đối tượng', score:70 }, { name:'Xác thực giấy tờ', score:55 }],
-      rui_ro:['Thiếu giấy xác nhận thu nhập', 'Thiếu hộ khẩu thường trú'], created_at: new Date().toISOString() }
-  },
-  { id:1003, ten_nguoi_nop:'Lê Thị Bình',   diem_uu_tien:91, documents:[
-      { id:5, ten_tai_lieu:'CCCD', loai_tai_lieu:'Giấy tờ tùy thân', loai_file:'image/jpeg', trang_thai_ocr:'DONE', kich_thuoc:'1.1 MB',
-        ocr_text:'HO VÀ TÊN: LÊ THỊ BÌNH\nSố CCCD: 080987654321\nNgày sinh: 15/06/1955',
-        extracted_fields:[{ key:'Họ tên', value:'Lê Thị Bình' }, { key:'Số CCCD', value:'080987654321' }, { key:'Ngày sinh', value:'15/06/1955' }]
-      },
-    ],
-    tags:[{ label:'Ưu tiên cao', color:'bg-amber-100 text-amber-700', full:'bg-amber-50 text-amber-700 border-amber-200', icon:'star' }],
-    danh_gia_ai:{ diem_uu_tien:91, do_tin_cay:88, de_xuat:'APPROVE',
-      nhan_xet:'Hồ sơ tốt, người nộp là người cao tuổi sống một mình, không có thu nhập ổn định. Điểm ưu tiên rất cao.',
-      cac_yeu_to:[{ name:'Tính đầy đủ hồ sơ', score:85 }, { name:'Điều kiện thu nhập', score:90 }, { name:'Điều kiện đối tượng', score:95 }, { name:'Xác thực giấy tờ', score:88 }],
-      rui_ro:[], created_at: new Date().toISOString() }
-  },
-])
+onMounted(async () => {
+  try {
+    // Load applications with status SUBMITTED (chờ xét duyệt)
+    const [resApps, resUsers] = await Promise.all([
+      http.get('/applications', { params: { trangThai: 'SUBMITTED', page: 0, size: 100 } }),
+      http.get('/users', { params: { size: 1000 } }).catch(() => ({ data: [] }))
+    ])
+
+    const appsList = resApps.data?.content || resApps.data || []
+    const usersList = resUsers.data?.content || resUsers.data || []
+    const userMap = Object.fromEntries(usersList.map(u => [u.id, u.fullName || u.username]))
+    const userMapByUsername = Object.fromEntries(usersList.map(u => [u.username, u.fullName || u.username]))
+
+    // Load attachments + ai-reviews for each app in parallel
+    const enriched = await Promise.all(appsList.map(async (a) => {
+      const name = userMap[a.nguoiDungId] || userMapByUsername[a.nguoiDungId] || 'Người nộp #' + (a.nguoiDungId || '').substring(0, 4)
+
+      const [docsRes, aiRes] = await Promise.all([
+        http.get(`/applications/${a.id}/attachments`).catch(() => ({ data: [] })),
+        http.get(`/ai-reviews/latest/${a.id}`).catch(() => ({ data: null }))
+      ])
+
+      const docs = (docsRes.data || []).map(d => ({
+        id: d.id,
+        ten_tai_lieu: d.tenTaiLieu || d.fileName || 'Tài liệu',
+        loai_tai_lieu: d.loaiTaiLieu || d.category || 'Khác',
+        loai_file: d.contentType || d.loaiFile || 'application/pdf',
+        trang_thai_ocr: d.ocrStatus || d.trangThaiOcr || 'PENDING',
+        kich_thuoc: d.fileSize ? (d.fileSize > 1048576 ? (d.fileSize / 1048576).toFixed(1) + ' MB' : (d.fileSize / 1024).toFixed(0) + ' KB') : '—',
+        ocr_text: d.ocrText || d.ketQuaOcr || null,
+        extracted_fields: d.extractedFields || [],
+      }))
+
+      const ai = aiRes.data
+      const diem = ai?.diemUuTien || null
+      const tags = []
+      if (diem && diem >= 80) tags.push({ label: 'Ưu tiên cao', color: 'bg-amber-100 text-amber-700', full: 'bg-amber-50 text-amber-700 border-amber-200', icon: 'star' })
+      if (docs.length >= 2) tags.push({ label: 'Đủ tài liệu', color: 'bg-emerald-100 text-emerald-700', full: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: 'check_circle' })
+      else if (docs.length < 2) tags.push({ label: 'Thiếu tài liệu', color: 'bg-red-100 text-red-600', full: 'bg-red-50 text-red-600 border-red-200', icon: 'warning' })
+
+      return {
+        id: a.id,
+        ten_nguoi_nop: name,
+        diem_uu_tien: diem || 0,
+        documents: docs,
+        tags,
+        danh_gia_ai: ai ? {
+          diem_uu_tien: ai.diemUuTien,
+          do_tin_cay: ai.doTinCay,
+          de_xuat: ai.deXuat || (ai.diemUuTien >= 70 ? 'APPROVE' : 'REVIEW'),
+          nhan_xet: ai.nhanXet || ai.nhanXetAi || '',
+          cac_yeu_to: ai.cacYeuTo || [],
+          rui_ro: ai.ruiRo || [],
+          created_at: ai.createdAt || new Date().toISOString(),
+        } : null,
+        trang_thai: a.trangThai,
+      }
+    }))
+
+    queue.value = enriched
+  } catch (e) {
+    console.error('Lỗi tải queue AI:', e)
+    ui.showError('Không thể tải danh sách hồ sơ chờ AI.')
+  }
+  loadingQueue.value = false
+})
 
 const filteredQueue = computed(() => {
   if (!qSearch.value) return queue.value
@@ -563,43 +594,58 @@ function copyOcrText() {
     .catch(() => ui.showError('Không thể sao chép'))
 }
 
-// ─── Chạy OCR cho 1 tài liệu ────────────────────────
+// ─── Chạy OCR cho 1 tài liệu (API thật) ─────────────
 const ocrRunning = ref(false)
 async function runOcr() {
   if (!selectedDoc.value || ocrRunning.value) return
   ocrRunning.value = true
   ui.showToast({ message: 'Đang chạy OCR cho ' + selectedDoc.value.ten_tai_lieu + '...', type: 'info' })
-  // Simulate OCR processing
-  await sleep(2000)
-  selectedDoc.value.trang_thai_ocr = 'DONE'
-  selectedDoc.value.ocr_text = `HỌ VÀ TÊN: ${selectedApp.value.ten_nguoi_nop.toUpperCase()}\nSố giấy tờ: Đã xác minh\nNgày cấp: ${formatDate(new Date())}\nNội dung: Tài liệu hợp lệ`
-  selectedDoc.value.extracted_fields = [
-    { key: 'Họ tên', value: selectedApp.value.ten_nguoi_nop },
-    { key: 'Trạng thái', value: 'Đã xác minh' },
-    { key: 'Ngày xử lý', value: formatDate(new Date()) },
-  ]
+  try {
+    const res = await http.post(`/attachments/${selectedDoc.value.id}/ocr`)
+    const ocr = res.data || {}
+    selectedDoc.value.trang_thai_ocr = 'DONE'
+    selectedDoc.value.ocr_text = ocr.ocrText || ocr.ketQuaOcr || 'Không trích xuất được nội dung'
+    selectedDoc.value.extracted_fields = ocr.extractedFields || []
+    ui.showSuccess('OCR hoàn tất cho ' + selectedDoc.value.ten_tai_lieu)
+  } catch (e) {
+    console.error('Lỗi OCR:', e)
+    ui.showError('OCR thất bại: ' + (e.response?.data?.message || e.message))
+  }
   ocrRunning.value = false
-  ui.showSuccess('OCR hoàn tất cho ' + selectedDoc.value.ten_tai_lieu)
 }
 
-// ─── Xác nhận AI → duyệt + xóa khỏi queue ──────────
-function confirmAI() {
+// ─── Xác nhận AI → duyệt + xóa khỏi queue (API thật) ──
+async function confirmAI() {
   if (!selectedApp.value) return
   const app = selectedApp.value
   const isApprove = app.danh_gia_ai?.de_xuat === 'APPROVE'
 
-  // Cập nhật trạng thái
-  app.trang_thai = isApprove ? 'APPROVED' : 'REVIEWING'
+  try {
+    // Bước 1: SUBMITTED → UNDER_REVIEW (bắt buộc trước khi approve/reject)
+    if (app.trang_thai === 'SUBMITTED') {
+      await http.patch(`/applications/${app.id}/under-review`)
+      app.trang_thai = 'UNDER_REVIEW'
+    }
 
-  // Xóa khỏi queue
-  const idx = queue.value.findIndex(a => a.id === app.id)
-  if (idx !== -1) queue.value.splice(idx, 1)
+    // Bước 2: UNDER_REVIEW → APPROVED hoặc giữ UNDER_REVIEW để xem xét
+    if (isApprove) {
+      await http.patch(`/applications/${app.id}/approve`)
+      app.trang_thai = 'APPROVED'
+    }
 
-  ui.showSuccess(`Đã xác nhận AI → ${isApprove ? 'Phê duyệt' : 'Chuyển xét duyệt'} #HS-${app.id}`)
+    // Xóa khỏi queue
+    const idx = queue.value.findIndex(a => a.id === app.id)
+    if (idx !== -1) queue.value.splice(idx, 1)
 
-  // Chuyển sang hồ sơ tiếp theo
-  selectedApp.value = queue.value[0] || null
-  selectedDoc.value = selectedApp.value?.documents?.[0] || null
+    ui.showSuccess(`Đã xác nhận AI → ${isApprove ? 'Phê duyệt' : 'Chuyển xét duyệt'} #HS-${app.id}`)
+
+    // Chuyển sang hồ sơ tiếp theo
+    selectedApp.value = queue.value[0] || null
+    selectedDoc.value = selectedApp.value?.documents?.[0] || null
+  } catch (e) {
+    console.error('Lỗi xác nhận AI:', e)
+    ui.showError('Thao tác thất bại: ' + (e.response?.data?.message || e.message))
+  }
 }
 
 // ─── Duyệt thủ công → mở modal ──────────────────────
@@ -608,22 +654,37 @@ function manualReview() {
   manualModal.value = { show: true, action: '', note: '' }
 }
 
-function confirmManual() {
+async function confirmManual() {
   const app = selectedApp.value
   if (!app) return
 
-  if (manualModal.value.action === 'approve') {
-    app.trang_thai = 'APPROVED'
-    app.ghi_chu_duyet = manualModal.value.note
-    const idx = queue.value.findIndex(a => a.id === app.id)
-    if (idx !== -1) queue.value.splice(idx, 1)
-    ui.showSuccess(`Đã phê duyệt thủ công #HS-${app.id}!`)
-  } else {
-    app.trang_thai = 'REJECTED'
-    app.ly_do_tu_choi = manualModal.value.note
-    const idx = queue.value.findIndex(a => a.id === app.id)
-    if (idx !== -1) queue.value.splice(idx, 1)
-    ui.showError(`Đã từ chối #HS-${app.id}: ${manualModal.value.note}`)
+  try {
+    // Bước 1: Nếu còn SUBMITTED → chuyển UNDER_REVIEW trước
+    if (app.trang_thai === 'SUBMITTED') {
+      await http.patch(`/applications/${app.id}/under-review`)
+      app.trang_thai = 'UNDER_REVIEW'
+    }
+
+    // Bước 2: UNDER_REVIEW → APPROVED hoặc REJECTED
+    if (manualModal.value.action === 'approve') {
+      await http.patch(`/applications/${app.id}/approve`)
+      app.trang_thai = 'APPROVED'
+      app.ghi_chu_duyet = manualModal.value.note
+      const idx = queue.value.findIndex(a => a.id === app.id)
+      if (idx !== -1) queue.value.splice(idx, 1)
+      ui.showSuccess(`Đã phê duyệt thủ công #HS-${app.id}!`)
+    } else {
+      await http.patch(`/applications/${app.id}/reject`, { lyDoTuChoi: manualModal.value.note })
+      app.trang_thai = 'REJECTED'
+      app.ly_do_tu_choi = manualModal.value.note
+      const idx = queue.value.findIndex(a => a.id === app.id)
+      if (idx !== -1) queue.value.splice(idx, 1)
+      ui.showWarning(`Đã từ chối #HS-${app.id}: ${manualModal.value.note}`)
+    }
+  } catch (e) {
+    console.error('Lỗi duyệt thủ công:', e)
+    ui.showError('Thao tác thất bại: ' + (e.response?.data?.message || e.message))
+    return  // Không đóng modal nếu lỗi
   }
 
   manualModal.value.show = false
@@ -654,43 +715,41 @@ function confirmRequestDocs() {
   ui.showSuccess(`Đã gửi yêu cầu bổ sung: ${labels.join(', ')}`)
 }
 
-// ─── Chạy AI cho 1 hồ sơ ────────────────────────────
+// ─── Chạy AI cho 1 hồ sơ (API thật) ─────────────────
 const aiRunning = ref(false)
 async function runAi() {
   if (!selectedApp.value || aiRunning.value) return
   aiRunning.value = true
   rightTab.value = 'AI'
 
-  // Simulate AI processing
-  await sleep(2500)
+  try {
+    const res = await http.post(`/applications/${selectedApp.value.id}/ai-review`)
+    const ai = res.data || {}
 
-  const score = Math.floor(60 + Math.random() * 40)
-  const confidence = Math.min(99, Math.max(50, score + Math.floor((Math.random() - 0.5) * 16)))
-  const isApprove = score >= 70
+    const score = ai.diemUuTien || 0
+    const confidence = ai.doTinCay || 0
+    const isApprove = (ai.deXuat || '').toUpperCase() === 'APPROVE' || score >= 70
 
-  selectedApp.value.diem_uu_tien = score
-  selectedApp.value.danh_gia_ai = {
-    diem_uu_tien: score,
-    do_tin_cay: confidence,
-    de_xuat: isApprove ? 'APPROVE' : 'REVIEW',
-    nhan_xet: isApprove
-      ? 'Hồ sơ đáp ứng các tiêu chí cơ bản. AI khuyến nghị phê duyệt với điểm ưu tiên ' + score + '.'
-      : 'Hồ sơ chưa đủ điều kiện hoặc cần xem xét thêm. Điểm tin cậy ' + confidence + '% — cần cán bộ kiểm tra.',
-    cac_yeu_to: [
-      { name: 'Tính đầy đủ hồ sơ', score: Math.floor(50 + Math.random() * 50) },
-      { name: 'Điều kiện thu nhập', score: Math.floor(40 + Math.random() * 60) },
-      { name: 'Điều kiện đối tượng', score: Math.floor(60 + Math.random() * 40) },
-      { name: 'Xác thực giấy tờ', score: Math.floor(50 + Math.random() * 50) },
-    ],
-    rui_ro: isApprove ? [] : ['Cần xác minh thêm thông tin thu nhập'],
-    created_at: new Date().toISOString(),
+    selectedApp.value.diem_uu_tien = score
+    selectedApp.value.danh_gia_ai = {
+      diem_uu_tien: score,
+      do_tin_cay: confidence,
+      de_xuat: isApprove ? 'APPROVE' : 'REVIEW',
+      nhan_xet: ai.nhanXet || ai.nhanXetAi || '',
+      cac_yeu_to: ai.cacYeuTo || [],
+      rui_ro: ai.ruiRo || [],
+      created_at: ai.createdAt || new Date().toISOString(),
+    }
+
+    ui.showSuccess(`AI phân tích hoàn tất! Điểm: ${score} · Tin cậy: ${confidence}%`)
+  } catch (e) {
+    console.error('Lỗi AI:', e)
+    ui.showError('Phân tích AI thất bại: ' + (e.response?.data?.message || e.message))
   }
-
   aiRunning.value = false
-  ui.showSuccess(`AI phân tích hoàn tất! Điểm: ${score} · Tin cậy: ${confidence}%`)
 }
 
-// ─── Chạy AI hàng loạt ──────────────────────────────
+// ─── Chạy AI hàng loạt (API thật) ───────────────────
 async function batchRun() {
   if (batchModal.value.running) return
   batchModal.value = { show: true, running: true, done: 0, total: queue.value.length, current: '', results: [] }
@@ -699,31 +758,30 @@ async function batchRun() {
     const app = queue.value[i]
     batchModal.value.current = `Đang phân tích: ${app.ten_nguoi_nop} (#HS-${app.id})...`
 
-    await sleep(1200 + Math.random() * 800)
+    try {
+      const res = await http.post(`/applications/${app.id}/ai-review`)
+      const ai = res.data || {}
 
-    const score = Math.floor(60 + Math.random() * 40)
-    const confidence = Math.min(99, Math.max(50, score + Math.floor((Math.random() - 0.5) * 16)))
-    const isApprove = score >= 70
+      const score = ai.diemUuTien || 0
+      const confidence = ai.doTinCay || 0
+      const isApprove = (ai.deXuat || '').toUpperCase() === 'APPROVE' || score >= 70
 
-    // Cập nhật data
-    app.diem_uu_tien = score
-    app.danh_gia_ai = {
-      diem_uu_tien: score,
-      do_tin_cay: confidence,
-      de_xuat: isApprove ? 'APPROVE' : 'REVIEW',
-      nhan_xet: isApprove ? 'AI khuyến nghị phê duyệt.' : 'Cần xem xét thêm.',
-      cac_yeu_to: [
-        { name: 'Tính đầy đủ hồ sơ', score: Math.floor(50 + Math.random() * 50) },
-        { name: 'Điều kiện thu nhập', score: Math.floor(40 + Math.random() * 60) },
-        { name: 'Điều kiện đối tượng', score: Math.floor(60 + Math.random() * 40) },
-        { name: 'Xác thực giấy tờ', score: Math.floor(50 + Math.random() * 50) },
-      ],
-      rui_ro: isApprove ? [] : ['Cần xác minh thêm'],
-      created_at: new Date().toISOString(),
+      app.diem_uu_tien = score
+      app.danh_gia_ai = {
+        diem_uu_tien: score,
+        do_tin_cay: confidence,
+        de_xuat: isApprove ? 'APPROVE' : 'REVIEW',
+        nhan_xet: ai.nhanXet || ai.nhanXetAi || '',
+        cac_yeu_to: ai.cacYeuTo || [],
+        rui_ro: ai.ruiRo || [],
+        created_at: ai.createdAt || new Date().toISOString(),
+      }
+
+      batchModal.value.results.push({ id: app.id, name: app.ten_nguoi_nop, score, de_xuat: isApprove ? 'APPROVE' : 'REVIEW' })
+    } catch (e) {
+      batchModal.value.results.push({ id: app.id, name: app.ten_nguoi_nop, score: 0, de_xuat: 'ERROR' })
     }
-
     batchModal.value.done = i + 1
-    batchModal.value.results.push({ id: app.id, name: app.ten_nguoi_nop, score, de_xuat: isApprove ? 'APPROVE' : 'REVIEW' })
   }
 
   batchModal.value.running = false
@@ -733,5 +791,4 @@ async function batchRun() {
 // ─── Helpers ─────────────────────────────────────────
 function formatDate(d) { return new Date(d).toLocaleDateString('vi-VN') }
 function formatTime(d) { if (!d) return '—'; return new Date(d).toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' }) }
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)) }
 </script>

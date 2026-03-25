@@ -144,24 +144,13 @@ const quickStats = ref([
 const recentApps = ref([])
 const openPrograms = ref([])
 
-// Fallback data mẫu — dùng khi backend chưa sẵn sàng
-const fallbackApps = [
-  { id:1001, ten_chuong_trinh:'Hỗ trợ người cao tuổi 2026',   trang_thai:'APPROVED', ngay_nop:'2026-01-10', steps:[1,2,3,4], step_done:4 },
-  { id:1002, ten_chuong_trinh:'Quỹ hỗ trợ người khuyết tật',  trang_thai:'PENDING',  ngay_nop:'2026-02-20', steps:[1,2,3,4], step_done:2 },
-  { id:1003, ten_chuong_trinh:'Hỗ trợ trẻ em có hoàn cảnh',   trang_thai:'REJECTED', ngay_nop:'2025-11-05', steps:[1,2,3,4], step_done:3 },
-]
-const fallbackPrograms = [
-  { id:1, ten:'Hỗ trợ người cao tuổi 2026',  han_nop:'31/12/2026', mo_ta:'Hỗ trợ hàng tháng cho người trên 60 tuổi có hoàn cảnh khó khăn.' },
-  { id:2, ten:'Hỗ trợ người khuyết tật',     han_nop:'30/06/2026', mo_ta:'Hỗ trợ chi phí phục hồi và hòa nhập cộng đồng.' },
-  { id:3, ten:'Quỹ học bổng trẻ em nghèo',   han_nop:'31/08/2026', mo_ta:'Hỗ trợ học phí và chi phí sinh hoạt cho trẻ em có hoàn cảnh.' },
-]
 
 onMounted(async () => {
   loading.value = true
   try {
     // Lấy toàn bộ chương trình trước để join dữ liệu
-    const pRes = await http.get('/programs', { params: { size: 1000 } }).catch(() => ({ data: { content: fallbackPrograms } }))
-    const allProgs = pRes.data?.content || pRes.data || fallbackPrograms
+    const pRes = await http.get('/programs', { params: { size: 1000 } }).catch(() => ({ data: { content: [] } }))
+    const allProgs = pRes.data?.content || pRes.data || []
 
     const [appsRes, statsRes] = await Promise.allSettled([
       applicationsApi.getMyApplications(0, 3),
@@ -184,7 +173,7 @@ onMounted(async () => {
         }
       })
     } else {
-      recentApps.value = fallbackApps
+      recentApps.value = []
     }
 
     // Stats
@@ -209,16 +198,16 @@ onMounted(async () => {
         mo_ta: p.moTa || p.mo_ta || '',
       }))
     } else {
-      openPrograms.value = fallbackPrograms
+      openPrograms.value = []
     }
   } catch (err) {
     // Fallback toàn bộ
     console.error(err)
-    recentApps.value = fallbackApps
-    openPrograms.value = fallbackPrograms
-    quickStats.value[0].value = 3
-    quickStats.value[1].value = 1
-    quickStats.value[2].value = 2
+    recentApps.value = []
+    openPrograms.value = []
+    quickStats.value[0].value = 0
+    quickStats.value[1].value = 0
+    quickStats.value[2].value = 0
   } finally {
     loading.value = false
   }

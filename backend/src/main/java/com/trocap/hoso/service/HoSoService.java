@@ -5,6 +5,7 @@ import com.trocap.auth.repository.NguoiDungRepository;
 import com.trocap.chuongtrinh.repository.ChuongTrinhRepository;
 import com.trocap.common.exception.BadRequestException;
 import com.trocap.common.exception.ResourceNotFoundException;
+import com.trocap.common.service.CounterService;
 import com.trocap.doituong.repository.DoiTuongRepository;
 import com.trocap.hoso.dto.HoSoRequest;
 import com.trocap.hoso.dto.RejectRequest;
@@ -28,6 +29,7 @@ public class HoSoService {
     private final DoiTuongRepository doiTuongRepository;
     private final ChuongTrinhRepository chuongTrinhRepository;
     private final ThongBaoService thongBaoService;
+    private final CounterService counterService;
 
     // ─── Danh sách (ADMIN/OFFICER xem tất cả) ──────────────────────
     public Page<HoSoHoTro> findAll(Pageable pageable) {
@@ -78,7 +80,12 @@ public class HoSoService {
         // Validate references
         validateReferences(request);
 
+        // Sinh mã hồ sơ tuần tự: HS-0001, HS-0002, ...
+        long seq = counterService.getNextSequence("hoso_seq");
+        String maHoSo = String.format("HS-%04d", seq);
+
         HoSoHoTro hoSo = HoSoHoTro.builder()
+                .maHoSo(maHoSo)
                 .nguoiDungId(user.getId())
                 .doiTuongId(request.getDoiTuongId())
                 .chuongTrinhId(request.getChuongTrinhId())

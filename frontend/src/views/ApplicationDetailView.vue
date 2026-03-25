@@ -455,8 +455,8 @@ const tabs = [
 ]
 
 const app = ref({
-  id: route.params.id, trang_thai: 'PENDING',
-  ngay_nop_ho_so: new Date().toISOString(),
+  id: route.params.id, trang_thai: 'DRAFT',
+  ngay_nop_ho_so: null,
   nguoi_dung: {}, chuong_trinh: {}, doi_tuong: {},
   danh_gia_ai: null, documents: [], payments: [],
 })
@@ -465,11 +465,17 @@ const canReview = computed(() => authStore.isAdmin || authStore.isReviewer)
 const canPay    = computed(() => authStore.isAdmin || authStore.isFinance)
 
 const STATUS_MAP = {
-  PENDING:   { badge:'bg-amber-100 text-amber-700',    iconBg:'bg-amber-100',    iconColor:'text-amber-600',   sym:'hourglass_top', label:'Chờ xét duyệt',  desc:'Hồ sơ đang chờ cán bộ xem xét', heroBg:'bg-amber-50',  border:'border-amber-200' },
-  REVIEWING: { badge:'bg-blue-100 text-blue-700',      iconBg:'bg-blue-100',     iconColor:'text-blue-600',    sym:'manage_search', label:'Đang xét duyệt', desc:'Hồ sơ đang được xét duyệt',     heroBg:'bg-blue-50',   border:'border-blue-200' },
-  APPROVED:  { badge:'bg-emerald-100 text-emerald-700',iconBg:'bg-emerald-100',  iconColor:'text-emerald-600', sym:'check_circle',  label:'Đã phê duyệt',   desc:'Hồ sơ được chấp thuận',         heroBg:'bg-emerald-50',border:'border-emerald-200' },
-  REJECTED:  { badge:'bg-red-100 text-red-700',        iconBg:'bg-red-100',      iconColor:'text-red-600',     sym:'cancel',        label:'Bị từ chối',     desc:'Hồ sơ không đạt điều kiện',     heroBg:'bg-red-50',    border:'border-red-200' },
+  DRAFT:        { badge:'bg-slate-100 text-slate-600',      iconBg:'bg-slate-100',    iconColor:'text-slate-500',   sym:'draft',         label:'Bản nháp',      desc:'Hồ sơ chưa được nộp',                heroBg:'bg-slate-50',   border:'border-slate-200' },
+  SUBMITTED:    { badge:'bg-amber-100 text-amber-700',      iconBg:'bg-amber-100',    iconColor:'text-amber-600',   sym:'hourglass_top', label:'Chờ xét duyệt', desc:'Hồ sơ đã nộp, chờ cán bộ tiếp nhận', heroBg:'bg-amber-50',   border:'border-amber-200' },
+  UNDER_REVIEW: { badge:'bg-blue-100 text-blue-700',        iconBg:'bg-blue-100',     iconColor:'text-blue-600',    sym:'manage_search', label:'Đang xét duyệt',desc:'Hồ sơ đang được xét duyệt',          heroBg:'bg-blue-50',    border:'border-blue-200' },
+  APPROVED:     { badge:'bg-emerald-100 text-emerald-700',  iconBg:'bg-emerald-100',  iconColor:'text-emerald-600', sym:'check_circle',  label:'Đã phê duyệt',  desc:'Hồ sơ được chấp thuận',              heroBg:'bg-emerald-50', border:'border-emerald-200' },
+  REJECTED:     { badge:'bg-red-100 text-red-700',          iconBg:'bg-red-100',      iconColor:'text-red-600',     sym:'cancel',        label:'Bị từ chối',    desc:'Hồ sơ không đạt điều kiện',          heroBg:'bg-red-50',     border:'border-red-200' },
+  PAID:         { badge:'bg-teal-100 text-teal-700',        iconBg:'bg-teal-100',     iconColor:'text-teal-600',    sym:'payments',      label:'Đã chi trả',    desc:'Hồ sơ đã được chi trả tiền',         heroBg:'bg-teal-50',    border:'border-teal-200' },
+  // Legacy aliases (phòng trường hợp dữ liệu cũ)
+  PENDING:      { badge:'bg-amber-100 text-amber-700',      iconBg:'bg-amber-100',    iconColor:'text-amber-600',   sym:'hourglass_top', label:'Chờ xét duyệt', desc:'Hồ sơ chờ cán bộ tiếp nhận',        heroBg:'bg-amber-50',   border:'border-amber-200' },
+  REVIEWING:    { badge:'bg-blue-100 text-blue-700',        iconBg:'bg-blue-100',     iconColor:'text-blue-600',    sym:'manage_search', label:'Đang xét duyệt',desc:'Hồ sơ đang được xét duyệt',          heroBg:'bg-blue-50',    border:'border-blue-200' },
 }
+
 const STATUS_FALLBACK = { badge:'bg-slate-100 text-slate-600', iconBg:'bg-slate-100', iconColor:'text-slate-500', sym:'help', label:'Không xác định', desc:'', heroBg:'bg-slate-50', border:'border-slate-200' }
 const st = computed(() => STATUS_MAP[app.value.trang_thai] || STATUS_FALLBACK)
 
@@ -492,15 +498,38 @@ const timeline = computed(() => {
   ]
 })
 
-function approveApp() {
-  app.value.trang_thai = 'APPROVED'
-  ui.showSuccess(`Đã phê duyệt hồ sơ #HS-${app.value.id}!`)
+async function approveApp() {
+  try {
+    // Bước 1: Nếu đang SUBMITTED → chuyển UNDER_REVIEW trước
+    if (app.value.trang_thai === 'SUBMITTED') {
+      await http.patch(`/applications/${app.value.id}/under-review`)
+      app.value.trang_thai = 'UNDER_REVIEW'
+    }
+    // Bước 2: UNDER_REVIEW → APPROVED
+    await http.patch(`/applications/${app.value.id}/approve`)
+    app.value.trang_thai = 'APPROVED'
+    ui.showSuccess(`Đã phê duyệt hồ sơ #HS-${app.value.id}!`)
+  } catch (e) {
+    ui.showError('Phê duyệt thất bại: ' + (e.response?.data?.message || e.message))
+  }
 }
-function confirmReject() {
-  app.value.trang_thai = 'REJECTED'
-  app.value.ly_do_tu_choi = rejectReason.value
-  showRejectModal.value = false
-  ui.showSuccess('Đã từ chối hồ sơ!')
+async function confirmReject() {
+  if (!rejectReason.value.trim()) return
+  try {
+    // Bước 1: Nếu đang SUBMITTED → chuyển UNDER_REVIEW trước
+    if (app.value.trang_thai === 'SUBMITTED') {
+      await http.patch(`/applications/${app.value.id}/under-review`)
+      app.value.trang_thai = 'UNDER_REVIEW'
+    }
+    // Bước 2: UNDER_REVIEW → REJECTED
+    await http.patch(`/applications/${app.value.id}/reject`, { lyDoTuChoi: rejectReason.value })
+    app.value.trang_thai = 'REJECTED'
+    app.value.ly_do_tu_choi = rejectReason.value
+    showRejectModal.value = false
+    ui.showSuccess('Hồ sơ đã bị từ chối.')
+  } catch (e) {
+    ui.showError('Từ chối thất bại: ' + (e.response?.data?.message || e.message))
+  }
 }
 function confirmPay() {
   if (!app.value.payments) app.value.payments = []
@@ -578,38 +607,20 @@ onMounted(async () => {
         ten_doi_tuong: cat.fullName || cat.name || cat.tenDoiTuong || '—',
         mo_ta: cat.moTa || cat.description
       },
-      diem_uu_tien: a.aiReview?.diemUuTien || a.diemUuTien || 85,
-      danh_gia_ai: a.aiReview || {
-        diem_uu_tien: a.diemUuTien || 85, do_tin_cay: a.doTinCay || 95, de_xuat: a.soTienDeXuat ? 'APPROVE' : 'UNKNOWN',
-        nhan_xet: a.moTa, cac_yeu_to: []
-      },
+      diem_uu_tien: a.aiReview?.diemUuTien || a.diemUuTien || null,
+      danh_gia_ai: a.aiReview ? {
+        diem_uu_tien: a.aiReview.diemUuTien,
+        do_tin_cay: a.aiReview.doTinCay,
+        de_xuat: a.aiReview.deXuat,
+        nhan_xet: a.aiReview.nhanXet || a.aiReview.nhanXetAi || '',
+        cac_yeu_to: a.aiReview.cacYeuTo || [],
+      } : null,
       documents: a.taiLieuDinhKem || a.documents || [],
       payments: a.chiTra || a.payments || [],
     }
-  } catch {
-    app.value = {
-      id: route.params.id, trang_thai: 'PENDING',
-      ngay_nop_ho_so: new Date().toISOString(),
-      nguoi_dung: { ten_day_du:'Nguyễn Thị Hoa', username:'hoa.nt', email:'hoa.nt@gmail.com', so_dien_thoai:'0901234567', dia_chi:'123 Nguyễn Văn Linh, Đà Nẵng' },
-      chuong_trinh: { ten_chuong_trinh:'Quỹ BTXH Tỉnh 2026', mo_ta:'Hỗ trợ hộ nghèo và cận nghèo trên địa bàn tỉnh.', trang_thai:'ACTIVE', ngay_bat_dau:'2026-01-01', ngay_ket_thuc:'2026-12-31' },
-      doi_tuong: { ten_doi_tuong:'Người cao tuổi', mo_ta:'Người từ 60 tuổi trở lên không có người chăm sóc' },
-      danh_gia_ai: {
-        diem_uu_tien: 87, do_tin_cay: 94, de_xuat: 'APPROVE',
-        nhan_xet: 'Hồ sơ đầy đủ và hợp lệ. Người nộp đáp ứng đầy đủ điều kiện xét duyệt. Khuyến nghị phê duyệt.',
-        cac_yeu_to: [
-          { name:'Tính đầy đủ hồ sơ', score:95 },
-          { name:'Điều kiện thu nhập', score:88 },
-          { name:'Điều kiện đối tượng',score:90 },
-          { name:'Xác thực giấy tờ',  score:85 },
-        ]
-      },
-      documents: [
-        { id:1, ten_tai_lieu:'Căn cước công dân',     loai_tai_lieu:'Giấy tờ tùy thân', loai_file:'image/jpeg',       trang_thai_ocr:'DONE',    ocr_text:'Họ tên: Nguyễn Thị Hoa\nSố CCCD: 079123456789\nNgày sinh: 01/01/1960' },
-        { id:2, ten_tai_lieu:'Hộ khẩu gia đình',      loai_tai_lieu:'Hộ khẩu',          loai_file:'application/pdf',  trang_thai_ocr:'DONE',    ocr_text: null },
-        { id:3, ten_tai_lieu:'Giấy xác nhận thu nhập',loai_tai_lieu:'Thu nhập',          loai_file:'application/pdf',  trang_thai_ocr:'PENDING', ocr_text: null },
-      ],
-      payments: [],
-    }
+  } catch (e) {
+    console.error('Lỗi tải hồ sơ:', e)
+    ui.showError('Không thể tải thông tin hồ sơ.')
   }
   loading.value = false
 })

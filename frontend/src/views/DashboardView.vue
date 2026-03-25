@@ -226,6 +226,7 @@ import {
 import { authStore } from '../stores/auth'
 import { applicationsApi } from '../api/applications'
 import { exportApi } from '../api/export'
+import http from '../api/http'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend, LineElement, PointElement, Filler)
 
@@ -274,20 +275,16 @@ const todayFormatted = now.toLocaleDateString('vi-VN', { weekday: 'long', day: '
 const stats = ref({ total: 0, pending: 0, approved: 0, rejected: 0, paid: 0, remaining: 0 })
 
 const statCards = computed(() => [
-  { label: 'Tổng hồ sơ nộp',     value: stats.value.total.toLocaleString('vi-VN'),   icon: 'folder_shared',          iconBg: 'bg-blue-100 text-blue-600',      bg: 'bg-blue-500',    trend: 12 },
-  { label: 'Chờ xét duyệt',      value: stats.value.pending.toLocaleString('vi-VN'), icon: 'pending_actions',        iconBg: 'bg-amber-100 text-amber-600',    bg: 'bg-amber-500',   trend: -3 },
-  { label: 'Đã phê duyệt',       value: stats.value.approved.toLocaleString('vi-VN'),icon: 'check_circle',           iconBg: 'bg-emerald-100 text-emerald-600',bg: 'bg-emerald-500', trend: 8  },
-  { label: 'Bị từ chối',         value: stats.value.rejected.toLocaleString('vi-VN'),icon: 'cancel',                 iconBg: 'bg-red-100 text-red-600',        bg: 'bg-red-500',     trend: -5 },
-  { label: 'Tổng đã chi trả',    value: formatVnd(stats.value.paid),                 icon: 'payments',               iconBg: 'bg-purple-100 text-purple-600',  bg: 'bg-purple-500',  trend: 15 },
-  { label: 'Ngân sách còn lại',  value: formatVnd(stats.value.remaining),            icon: 'account_balance_wallet', iconBg: 'bg-teal-100 text-teal-600',      bg: 'bg-teal-500',    trend: -8 },
+  { label: 'Tổng hồ sơ nộp',     value: stats.value.total.toLocaleString('vi-VN'),   icon: 'folder_shared',          iconBg: 'bg-blue-100 text-blue-600',      bg: 'bg-blue-500',    trend: 0 },
+  { label: 'Chờ xét duyệt',      value: stats.value.pending.toLocaleString('vi-VN'), icon: 'pending_actions',        iconBg: 'bg-amber-100 text-amber-600',    bg: 'bg-amber-500',   trend: 0 },
+  { label: 'Đã phê duyệt',       value: stats.value.approved.toLocaleString('vi-VN'),icon: 'check_circle',           iconBg: 'bg-emerald-100 text-emerald-600',bg: 'bg-emerald-500', trend: 0 },
+  { label: 'Bị từ chối',         value: stats.value.rejected.toLocaleString('vi-VN'),icon: 'cancel',                 iconBg: 'bg-red-100 text-red-600',        bg: 'bg-red-500',     trend: 0 },
+  { label: 'Tổng đã chi trả',    value: formatVnd(stats.value.paid),                 icon: 'payments',               iconBg: 'bg-purple-100 text-purple-600',  bg: 'bg-purple-500',  trend: 0 },
+  { label: 'Ngân sách còn lại',  value: formatVnd(stats.value.remaining),            icon: 'account_balance_wallet', iconBg: 'bg-teal-100 text-teal-600',      bg: 'bg-teal-500',    trend: 0 },
 ])
 
-// ─── Alerts ───────────────────────────────────────────────────
-const alerts = ref([
-  { id: 1, icon: 'schedule',   title: 'Chương trình sắp hết hạn',         desc: 'Quỹ Hỗ trợ mùa lũ 2025 kết thúc sau 5 ngày',          cls: 'bg-amber-50 border-amber-200 text-amber-800' },
-  { id: 2, icon: 'savings',    title: 'Nguồn quỹ sắp cạn',               desc: 'Quỹ Cứu trợ khẩn cấp còn lại 12% ngân sách (1.2 Tỷ)', cls: 'bg-red-50 border-red-200 text-red-700' },
-  { id: 3, icon: 'psychology', title: 'AI: 8 hồ sơ ưu tiên chờ duyệt',  desc: '8 hồ sơ có điểm AI ≥ 90 — đề xuất xử lý ngay',        cls: 'bg-blue-50 border-blue-200 text-blue-800' },
-])
+// ─── Alerts ─── (loaded from API data)
+const alerts = ref([])
 
 // ─── Program Bar Chart ────────────────────────────────────────
 const programChartData = ref(null)
@@ -361,30 +358,34 @@ async function loadData() {
     const res = await applicationsApi.getStats()
     const d = res.data || {}
     stats.value = {
-      total: d.total || d.tong || 1247,
-      pending: d.pending || d.cho_duyet || 284,
-      approved: d.approved || d.phe_duyet || 893,
-      rejected: d.rejected || d.tu_choi || 70,
-      paid: d.paid || d.da_chi || 15_800_000_000,
-      remaining: d.remaining || d.con_lai || 34_200_000_000,
+      total: d.total ?? 0,
+      pending: d.SUBMITTED ?? d.pending ?? 0,
+      approved: d.APPROVED ?? d.approved ?? 0,
+      rejected: d.REJECTED ?? d.rejected ?? 0,
+      paid: d.PAID ?? d.paid ?? 0,
+      remaining: d.remaining ?? d.con_lai ?? 0,
     }
-  } catch {
-    stats.value = { total: 1247, pending: 284, approved: 893, rejected: 70, paid: 15_800_000_000, remaining: 34_200_000_000 }
+  } catch (e) {
+    console.error('Lỗi tải thống kê:', e)
+    stats.value = { total: 0, pending: 0, approved: 0, rejected: 0, paid: 0, remaining: 0 }
   }
 
-  // Program Bar Chart data
-  const programs = ['BTXH Tỉnh', 'Cứu Trợ KC', 'Hỗ trợ Lũ', 'Cao Tuổi', 'Trẻ Em Nghèo', 'Khuyết Tật']
-  const counts   = [312, 189, 145, 231, 98, 272]
-  programChartData.value = {
-    labels: programs,
-    datasets: [{
-      data: counts,
-      backgroundColor: ['#3b82f6', '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#14b8a6'],
-      hoverBackgroundColor: ['#2563eb', '#4f46e5', '#059669', '#d97706', '#dc2626', '#0d9488'],
-    }]
-  }
+  // Program Bar Chart — lấy từ API /programs
+  try {
+    const progRes = await http.get('/programs', { params: { size: 100 } })
+    const progList = progRes.data?.content || progRes.data || []
+    if (progList.length) {
+      const progNames = progList.map(p => (p.tenChuongTrinh || p.name || '—').split(' ').slice(0, 3).join(' '))
+      const progCounts = progList.map(p => p.soHoSo ?? 0)
+      const bgColors = ['#3b82f6', '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#14b8a6', '#8b5cf6', '#06b6d4']
+      programChartData.value = {
+        labels: progNames,
+        datasets: [{ data: progCounts, backgroundColor: bgColors.slice(0, progNames.length), hoverBackgroundColor: bgColors.slice(0, progNames.length) }]
+      }
+    }
+  } catch { /* charts optional */ }
 
-  // Doughnut data
+  // Doughnut data — from stats
   const statusData = [stats.value.pending, stats.value.approved, stats.value.rejected, 0]
   const statusColors = ['#f59e0b', '#10b981', '#ef4444', '#6366f1']
   const statusLabels = ['Chờ duyệt', 'Phê duyệt', 'Từ chối', 'Đang xử lý']
@@ -394,49 +395,26 @@ async function loadData() {
   }
   statusLegend.value = statusLabels.map((l, i) => ({ label: l, color: statusColors[i], count: statusData[i] }))
 
-  // ★ Trend Line Chart — xu hướng 6 tháng
-  const months = ['T10/25', 'T11/25', 'T12/25', 'T01/26', 'T02/26', 'T03/26']
-  trendChartData.value = {
-    labels: months,
-    datasets: [
-      {
-        label: 'Hồ sơ mới',
-        data: [143, 168, 192, 215, 198, 231],
-        borderColor: '#3b82f6',
-        backgroundColor: 'rgba(59,130,246,0.08)',
-        fill: true,
-        pointBackgroundColor: '#3b82f6',
-      },
-      {
-        label: 'Phê duyệt',
-        data: [128, 145, 175, 190, 182, 210],
-        borderColor: '#10b981',
-        backgroundColor: 'rgba(16,185,129,0.08)',
-        fill: true,
-        pointBackgroundColor: '#10b981',
-      },
-      {
-        label: 'Từ chối',
-        data: [12, 18, 14, 20, 11, 15],
-        borderColor: '#ef4444',
-        backgroundColor: 'rgba(239,68,68,0.05)',
-        fill: true,
-        pointBackgroundColor: '#ef4444',
-      },
-    ]
-  }
+  // Trend Line Chart — chưa có API trend, hiển thị trống
+  trendChartData.value = null
 
-  // Fund horizontal bar
-  const fundNames = ['Quỹ BTXH Tỉnh 2026', 'Quỹ Cứu Trợ KC', 'Quỹ Hỗ trợ Lũ 2025']
-  const spent     = [11.5, 8.8, 4.6]
-  const remain    = [38.5, 1.2, 3.4]
-  fundChartData.value = {
-    labels: fundNames,
-    datasets: [
-      { label: 'Đã chi',   data: spent,  backgroundColor: '#f59e0b', hoverBackgroundColor: '#d97706' },
-      { label: 'Còn lại',  data: remain, backgroundColor: '#3b82f6', hoverBackgroundColor: '#2563eb' },
-    ]
-  }
+  // Fund horizontal bar — lấy từ API /nguon-quy
+  try {
+    const fundRes = await http.get('/nguon-quy', { params: { size: 50 } })
+    const fundList = fundRes.data?.content || fundRes.data || []
+    if (fundList.length) {
+      const fundNames = fundList.map(f => f.tenNguonQuy || f.ten_nguon_quy || '—')
+      const spentArr = fundList.map(f => (f.daSuDung || f.da_su_dung || 0) / 1e9)
+      const remainArr = fundList.map(f => (f.conLai || f.con_lai || 0) / 1e9)
+      fundChartData.value = {
+        labels: fundNames,
+        datasets: [
+          { label: 'Đã chi',  data: spentArr,  backgroundColor: '#f59e0b', hoverBackgroundColor: '#d97706' },
+          { label: 'Còn lại', data: remainArr, backgroundColor: '#3b82f6', hoverBackgroundColor: '#2563eb' },
+        ]
+      }
+    }
+  } catch { /* charts optional */ }
 
   // Recent hồ sơ — thử từ API
   const bgs = ['bg-blue-100 text-blue-700', 'bg-emerald-100 text-emerald-700', 'bg-amber-100 text-amber-700', 'bg-purple-100 text-purple-700', 'bg-red-100 text-red-700']
@@ -469,24 +447,38 @@ async function loadData() {
         }
       })
     } else throw new Error('empty')
-  } catch {
-    recentHoSo.value = [
-      { id: 5, ten_nguoi_nop: 'Nguyễn Thị Hoa',  chuong_trinh: 'BTXH Tỉnh',    ngay_nop: '23/03/2026', trang_thai: 'PENDING',   initials: 'NH', avatarBg: bgs[0] },
-      { id: 6, ten_nguoi_nop: 'Trần Văn Nam',     chuong_trinh: 'Cứu Trợ KC',   ngay_nop: '23/03/2026', trang_thai: 'APPROVED',  initials: 'TN', avatarBg: bgs[1] },
-      { id: 7, ten_nguoi_nop: 'Lê Thị Mai',       chuong_trinh: 'Người Cao Tuổi',ngay_nop: '22/03/2026', trang_thai: 'PENDING',   initials: 'LM', avatarBg: bgs[2] },
-      { id: 8, ten_nguoi_nop: 'Phạm Đình Khoa',   chuong_trinh: 'Trẻ Em Nghèo', ngay_nop: '22/03/2026', trang_thai: 'REVIEWING', initials: 'PK', avatarBg: bgs[3] },
-      { id: 9, ten_nguoi_nop: 'Võ Minh Đức',      chuong_trinh: 'Khuyết Tật',   ngay_nop: '21/03/2026', trang_thai: 'REJECTED',  initials: 'VD', avatarBg: bgs[4] },
-    ]
+  } catch (e) {
+    console.error('Lỗi tải hồ sơ gần đây:', e)
+    recentHoSo.value = []
   }
 
-  // Recent notifs
-  recentNotifs.value = [
-    { id: 1, tieu_de: 'Hồ sơ #HS-042 đã được phê duyệt và chuyển sang giai đoạn chi trả', icon: 'check_circle', iconBg: 'bg-emerald-100 text-emerald-600', da_doc: false, time: '5 phút trước' },
-    { id: 2, tieu_de: 'AI phát hiện 3 hồ sơ có nguy cơ gian lận — cần xem xét thủ công',  icon: 'psychology',   iconBg: 'bg-blue-100 text-blue-600',      da_doc: false, time: '12 phút trước' },
-    { id: 3, tieu_de: 'Quỹ Cứu trợ khẩn cấp còn lại dưới 20% ngân sách',                  icon: 'warning',      iconBg: 'bg-amber-100 text-amber-600',    da_doc: true,  time: '1 giờ trước' },
-    { id: 4, tieu_de: 'Thanh toán lô tháng 3/2026 đã hoàn thành — 89 hồ sơ',              icon: 'payments',     iconBg: 'bg-purple-100 text-purple-600',  da_doc: true,  time: '3 giờ trước' },
-    { id: 5, tieu_de: 'Chương trình "Hỗ trợ mùa lũ 2025" sẽ kết thúc sau 5 ngày',        icon: 'schedule',     iconBg: 'bg-red-100 text-red-600',        da_doc: true,  time: 'Hôm qua' },
-  ]
+  // Recent notifs — from API
+  try {
+    const notifIconMap = {
+      'APPLICATION_APPROVED': { icon: 'check_circle', iconBg: 'bg-emerald-100 text-emerald-600' },
+      'APPLICATION_REJECTED': { icon: 'cancel', iconBg: 'bg-red-100 text-red-600' },
+      'AI_REVIEW':            { icon: 'psychology', iconBg: 'bg-blue-100 text-blue-600' },
+      'PAYMENT':              { icon: 'payments', iconBg: 'bg-purple-100 text-purple-600' },
+      'WARNING':              { icon: 'warning', iconBg: 'bg-amber-100 text-amber-600' },
+    }
+    const defaultIcon = { icon: 'notifications', iconBg: 'bg-slate-100 text-slate-600' }
+
+    const resNotifs = await http.get('/notifications', { params: { page: 0, size: 5 } })
+    const notifsList = resNotifs.data?.content || resNotifs.data || []
+    recentNotifs.value = notifsList.map(n => {
+      const iconInfo = notifIconMap[n.loai] || defaultIcon
+      return {
+        id: n.id,
+        tieu_de: n.tieuDe || n.noiDung || 'Thông báo',
+        icon: iconInfo.icon,
+        iconBg: iconInfo.iconBg,
+        da_doc: n.daDoc || false,
+        time: n.createdAt ? timeAgo(n.createdAt) : '—',
+      }
+    })
+  } catch {
+    recentNotifs.value = []
+  }
 
   loading.value = false
 }
@@ -512,6 +504,20 @@ function hoSoStatusClass(s) {
 }
 
 function refresh() { loadData() }
+
+function timeAgo(dateStr) {
+  const now = Date.now()
+  const d = new Date(dateStr).getTime()
+  const diff = now - d
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'Vừa xong'
+  if (mins < 60) return `${mins} phút trước`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours} giờ trước`
+  const days = Math.floor(hours / 24)
+  if (days === 1) return 'Hôm qua'
+  return `${days} ngày trước`
+}
 </script>
 
 <style scoped>

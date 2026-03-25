@@ -19,6 +19,7 @@ Hệ thống quản lý trợ cấp & hỗ trợ xã hội dành cho cơ quan nh
 - [Cấu Trúc Dự Án](#-cấu-trúc-dự-án)
 - [Yêu Cầu Hệ Thống](#-yêu-cầu-hệ-thống)
 - [Hướng Dẫn Cài Đặt](#-hướng-dẫn-cài-đặt)
+- [**Import Dữ Liệu MongoDB**](#-import-dữ-liệu-mongodb)
 - [Chạy Dự Án](#-chạy-dự-án)
 - [Tài Khoản Demo](#-tài-khoản-demo)
 - [API Endpoints](#-api-endpoints)
@@ -200,6 +201,51 @@ server.port=8080
 ```
 
 > **Lưu ý:** Mặc định backend sẽ kết nối MongoDB tại `localhost:27017`. Không cần thay đổi nếu chạy local.
+
+---
+
+## 📦 Import Dữ Liệu MongoDB
+
+> **Bắt buộc** khi clone về lần đầu. Dữ liệu thật (không phải seedata giả) đã được đóng gói sẵn trong thư mục `database/`.
+
+### Bước 1: Cài MongoDB Database Tools
+
+Nếu chưa có `mongorestore`, tải tại:
+👉 https://www.mongodb.com/try/download/database-tools
+
+### Bước 2: Import dữ liệu
+
+**Windows:**
+```bat
+cd database
+import-data.bat
+```
+
+**Linux / Mac:**
+```bash
+cd database
+chmod +x import-data.sh
+./import-data.sh
+```
+
+**Hoặc thủ công:**
+```bash
+mongorestore --drop --db trocap database/dump/trocap
+```
+
+### Dữ liệu bao gồm
+
+| Collection | Số lượng | Mô tả |
+|---|---|---|
+| `users` | 5 | 4 tài khoản demo + admin |
+| `beneficiaries` | 20 | Đối tượng hưởng trợ cấp thật |
+| `programs` | 5 | Chương trình trợ cấp |
+| `applications` | 2+ | Hồ sơ đề nghị |
+| `transactions` | 16 | Lịch sử chi trả |
+| `nguon_quy` | 3 | Nguồn quỹ ngân sách |
+| `beneficiary_groups` | 4 | Nhóm đối tượng |
+| `audit_logs` | 6 | Nhật ký hệ thống |
+| `counters` | 1 | Bộ đếm mã hồ sơ (HS-0001...) |
 
 ---
 

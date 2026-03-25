@@ -90,52 +90,25 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import http from '../api/http'
 
 const loading = ref(false)
 const filterType = ref('all')
 
-const logs = ref([
-  { id: 1, type: 'application', icon: 'upload_file', iconBg: 'bg-blue-100 text-blue-600',
-    title: 'Hồ sơ #HS-1247 được nộp',
-    description: 'Nguyễn Thị Hoa đã nộp hồ sơ xin trợ cấp người cao tuổi — tự động chuyển sang trạng thái chờ duyệt.',
-    time: '5 phút trước', user: 'Nguyễn Thị Hoa', ip: '192.168.1.45' },
-  { id: 2, type: 'application', icon: 'check_circle', iconBg: 'bg-emerald-100 text-emerald-600',
-    title: 'Hồ sơ #HS-1240 được phê duyệt',
-    description: 'Cán bộ Lê Minh Trí đã phê duyệt hồ sơ. AI score: 91.2. Chuyển sang giai đoạn chi trả.',
-    time: '15 phút trước', user: 'Lê Minh Trí', ip: '10.0.0.12' },
-  { id: 3, type: 'payment', icon: 'payments', iconBg: 'bg-purple-100 text-purple-600',
-    title: 'Chi trả lô tháng 3/2026 hoàn thành',
-    description: '89 hồ sơ đã được chi trả thành công. Tổng giải ngân: 445.000.000đ. 0 lỗi chuyển khoản.',
-    time: '1 giờ trước', user: 'Hệ thống', ip: null },
-  { id: 4, type: 'system', icon: 'psychology', iconBg: 'bg-indigo-100 text-indigo-600',
-    title: 'AI phát hiện 3 hồ sơ nghi gian lận',
-    description: 'Module AI fraud detection đã đánh dấu 3 hồ sơ (#HS-1198, #HS-1201, #HS-1205) có điểm tin cậy dưới 40.',
-    time: '2 giờ trước', user: 'AI Engine', ip: null },
-  { id: 5, type: 'application', icon: 'cancel', iconBg: 'bg-red-100 text-red-600',
-    title: 'Hồ sơ #HS-1235 bị từ chối',
-    description: 'Lý do: Thiếu giấy xác nhận hộ nghèo. Người nộp được gợi ý bổ sung tài liệu.',
-    time: '3 giờ trước', user: 'Trần Văn Bình', ip: '10.0.0.8' },
-  { id: 6, type: 'program', icon: 'campaign', iconBg: 'bg-amber-100 text-amber-600',
-    title: 'Chương trình "Học bổng trẻ em nghèo" cập nhật',
-    description: 'Hạn nộp được gia hạn từ 31/07/2026 → 31/08/2026. Tổng chỉ tiêu tăng từ 150 → 200.',
-    time: '5 giờ trước', user: 'Admin', ip: '10.0.0.1' },
-  { id: 7, type: 'user', icon: 'person_add', iconBg: 'bg-teal-100 text-teal-600',
-    title: 'Tài khoản mới đăng ký',
-    description: 'Phạm Thị Lan (email: lan.pt@gmail.com) đã tạo tài khoản mới. Vai trò: Người xem.',
-    time: '6 giờ trước', user: 'Phạm Thị Lan', ip: '118.70.45.22' },
-  { id: 8, type: 'system', icon: 'backup', iconBg: 'bg-slate-100 text-slate-600',
-    title: 'Sao lưu dữ liệu tự động',
-    description: 'Backup #B-20260323 hoàn thành. Kích thước: 2.4GB. Lưu trữ: Cloud Storage.',
-    time: 'Hôm qua 23:00', user: 'Hệ thống', ip: null },
-  { id: 9, type: 'payment', icon: 'account_balance', iconBg: 'bg-purple-100 text-purple-600',
-    title: 'Nguồn quỹ được bổ sung',
-    description: 'Quỹ BTXH Tỉnh 2026 nhận bổ sung 5 tỷ đồng từ ngân sách Trung ương.',
-    time: 'Hôm qua 14:30', user: 'Admin', ip: '10.0.0.1' },
-  { id: 10, type: 'application', icon: 'smart_toy', iconBg: 'bg-indigo-100 text-indigo-600',
-    title: 'AI Review batch #42 hoàn thành',
-    description: '25 hồ sơ đã qua vòng AI review. Trung bình score: 78.5. 3 hồ sơ ưu tiên cao (≥90).',
-    time: 'Hôm qua 10:15', user: 'AI Engine', ip: null },
-])
+const logs = ref([])
+
+const actionIconMap = {
+  LOGIN:    { type: 'system',      icon: 'login',         iconBg: 'bg-slate-100 text-slate-600' },
+  LOGOUT:   { type: 'system',      icon: 'logout',        iconBg: 'bg-slate-100 text-slate-600' },
+  CREATE:   { type: 'program',     icon: 'add_circle',    iconBg: 'bg-amber-100 text-amber-600' },
+  REVIEW:   { type: 'application', icon: 'manage_search', iconBg: 'bg-blue-100 text-blue-600' },
+  APPROVE:  { type: 'application', icon: 'check_circle',  iconBg: 'bg-emerald-100 text-emerald-600' },
+  REJECT:   { type: 'application', icon: 'cancel',        iconBg: 'bg-red-100 text-red-600' },
+  DISBURSE: { type: 'payment',     icon: 'payments',      iconBg: 'bg-purple-100 text-purple-600' },
+  UPDATE:   { type: 'system',      icon: 'edit',          iconBg: 'bg-teal-100 text-teal-600' },
+  DELETE:   { type: 'system',      icon: 'delete',        iconBg: 'bg-red-100 text-red-600' },
+}
+const defaultActionIcon = { type: 'system', icon: 'history', iconBg: 'bg-slate-100 text-slate-600' }
 
 const filteredLogs = computed(() => {
   if (filterType.value === 'all') return logs.value
@@ -155,11 +128,45 @@ function typeClass(t) {
   }[t] || 'bg-slate-100 text-slate-600'
 }
 
-async function loadLogs() {
-  loading.value = true
-  // TODO: gọi API logs
-  setTimeout(() => { loading.value = false }, 500)
+function timeAgo(ts) {
+  if (!ts) return ''
+  const diff = Date.now() - new Date(ts).getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 1) return 'Vừa xong'
+  if (m < 60) return `${m} phút trước`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h} giờ trước`
+  const d = Math.floor(h / 24)
+  if (d === 1) return 'Hôm qua'
+  return new Date(ts).toLocaleDateString('vi-VN')
 }
 
-onMounted(() => { /* Data đã sẵn sàng từ fallback */ })
+async function loadLogs() {
+  loading.value = true
+  try {
+    const res = await http.get('/audit-logs', { params: { page: 0, size: 50 } })
+    const list = res.data?.content || res.data || []
+    logs.value = list.map(l => {
+      const info = actionIconMap[l.action] || defaultActionIcon
+      return {
+        id: l.id,
+        type: info.type,
+        icon: info.icon,
+        iconBg: info.iconBg,
+        title: `${l.action} — ${l.entityType || 'System'}`,
+        description: l.details || `${l.action} bởi ${l.username || 'system'}`,
+        time: l.createdAt ? timeAgo(l.createdAt) : '—',
+        user: l.username || 'system',
+        ip: l.ipAddress || null,
+      }
+    })
+  } catch (e) {
+    console.error('Lỗi tải nhật ký:', e)
+    logs.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(loadLogs)
 </script>

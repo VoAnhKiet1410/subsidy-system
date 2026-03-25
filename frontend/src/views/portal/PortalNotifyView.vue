@@ -64,74 +64,27 @@ import { notificationsApi } from '../../api/notifications'
 const activeTab = ref('all')
 const loading = ref(false)
 
-const fallbackNotifs = [
-  {
-    id: 1, type: 'approved',
-    title: 'Hồ sơ #HS-1001 đã được phê duyệt!',
-    content: 'Hồ sơ xin hỗ trợ người cao tuổi của bạn đã được phê duyệt. Tiền trợ cấp sẽ được chuyển khoản trong vòng 7 ngày làm việc.',
-    icon: 'check_circle', iconBg: 'bg-emerald-50', iconColor: 'text-emerald-500',
-    time: '10 phút trước', read: false, link: '/portal/ho-so-cua-toi/1001',
-  },
-  {
-    id: 2, type: 'review',
-    title: 'Hồ sơ #HS-1002 đang được xét duyệt',
-    content: 'Hồ sơ xin hỗ trợ người khuyết tật đã qua vòng AI đánh giá và đang chờ cán bộ xét duyệt.',
-    icon: 'manage_search', iconBg: 'bg-blue-50', iconColor: 'text-blue-500',
-    time: '2 giờ trước', read: false, link: '/portal/ho-so-cua-toi/1002',
-  },
-  {
-    id: 3, type: 'warning',
-    title: 'Chương trình "Quỹ học bổng trẻ em nghèo" sắp hết hạn',
-    content: 'Chỉ còn 15 ngày để nộp hồ sơ. Nếu bạn đủ điều kiện, hãy nộp ngay.',
-    icon: 'schedule', iconBg: 'bg-amber-50', iconColor: 'text-amber-500',
-    time: 'Hôm qua', read: true, link: '/portal/chuong-trinh',
-  },
-  {
-    id: 4, type: 'system',
-    title: 'Tài khoản đã được xác minh',
-    content: 'Tài khoản của bạn đã được xác minh thành công. Bạn có thể nộp hồ sơ cho tất cả chương trình.',
-    icon: 'verified_user', iconBg: 'bg-primary/10', iconColor: 'text-primary',
-    time: '2 ngày trước', read: true, link: null,
-  },
-  {
-    id: 5, type: 'rejected',
-    title: 'Hồ sơ #HS-1003 bị từ chối',
-    content: 'Rất tiếc, hồ sơ hỗ trợ trẻ em có hoàn cảnh khó khăn không đáp ứng đủ điều kiện. Bạn có thể bổ sung tài liệu và nộp lại.',
-    icon: 'cancel', iconBg: 'bg-red-50', iconColor: 'text-red-500',
-    time: '5 ngày trước', read: true, link: '/portal/ho-so-cua-toi/1003',
-  },
-  {
-    id: 6, type: 'payment',
-    title: 'Đã nhận trợ cấp tháng 01/2026',
-    content: 'Số tiền 500.000đ đã được chuyển vào tài khoản ngân hàng của bạn. Vui lòng kiểm tra.',
-    icon: 'payments', iconBg: 'bg-emerald-50', iconColor: 'text-emerald-500',
-    time: '20/01/2026', read: true, link: null,
-  },
-]
-
-const notifications = ref(fallbackNotifs)
+const notifications = ref([])
 
 onMounted(async () => {
   loading.value = true
   try {
     const res = await notificationsApi.getAll()
     const list = res.data.content || res.data || []
-    if (list.length) {
-      notifications.value = list.map(n => ({
-        id: n.id,
-        type: n.loai || 'system',
-        title: n.tieu_de || n.title || '',
-        content: n.noi_dung || n.content || '',
-        icon: mapIcon(n.loai),
-        iconBg: mapIconBg(n.loai),
-        iconColor: mapIconColor(n.loai),
-        time: n.ngay_tao ? timeAgo(n.ngay_tao) : '',
-        read: !!n.da_doc,
-        link: n.link || null,
-      }))
-    }
+    notifications.value = list.map(n => ({
+      id: n.id,
+      type: n.loai || 'system',
+      title: n.tieu_de || n.title || '',
+      content: n.noi_dung || n.content || '',
+      icon: mapIcon(n.loai),
+      iconBg: mapIconBg(n.loai),
+      iconColor: mapIconColor(n.loai),
+      time: n.ngay_tao ? timeAgo(n.ngay_tao) : '',
+      read: !!n.da_doc,
+      link: n.link || null,
+    }))
   } catch {
-    // Giữ fallback
+    // Giữ list rỗng — hiện empty state
   } finally {
     loading.value = false
   }

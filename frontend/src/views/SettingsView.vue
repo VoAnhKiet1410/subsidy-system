@@ -216,8 +216,9 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useUI } from '../stores/ui'
+import http from '../api/http'
 
 const ui = useUI()
 const saving = ref(false)
@@ -230,25 +231,55 @@ const tabs = [
   { key: 'system',        label: 'Hệ thống',    icon: 'developer_board' },
 ]
 
-// General settings
-const gen = reactive({
-  systemName: 'Hệ thống Quản lý Trợ cấp Thông minh',
-  orgName: 'UBND Tỉnh / Sở Lao động & Xã hội',
-  contactEmail: 'hotro@trocap.gov.vn',
-  supportPhone: '1900 1234',
-  address: 'Số 1 Đường Hùng Vương, Thành phố Đà Nẵng',
-  description: 'Hệ thống hỗ trợ quản lý và xét duyệt hồ sơ trợ cấp xã hội với sự hỗ trợ của AI.',
-})
+// ─── Helper: Load / Save settings to localStorage ───
+const SETTINGS_KEY = 'trocap_settings'
+const defaultSettings = {
+  gen: {
+    systemName: '', orgName: '', contactEmail: '', supportPhone: '',
+    address: '', description: '',
+  },
+  ai: { minScore: 0, minConfidence: 0, autoReview: false },
+  sec: {
+    minPasswordLen: 8, sessionTimeout: 60,
+    requireUppercase: true, requireNumber: true, requireSymbol: false,
+    twoFactor: false, logAllActions: true,
+  },
+  notifChannels: [
+    { key:'email', enabled:true }, { key:'inapp', enabled:true }, { key:'sms', enabled:false },
+  ],
+  notifEvents: [
+    { key:'submitted', enabled:true }, { key:'approved', enabled:true },
+    { key:'rejected', enabled:true }, { key:'payment', enabled:true }, { key:'reminder', enabled:false },
+  ],
+}
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
+function persistSettings() {
+  const data = {
+    gen: { ...gen },
+    ai: { ...ai },
+    sec: { ...sec },
+    notifChannels: notifChannels.map(c => ({ key: c.key, enabled: c.enabled })),
+    notifEvents: notifEvents.map(e => ({ key: e.key, enabled: e.enabled })),
+  }
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(data))
+}
+
+const saved = loadSettings()
+
+// General settings — from localStorage or empty
+const gen = reactive(saved?.gen || { ...defaultSettings.gen })
 
 // AI config
-const ai = reactive({ minScore: 70, minConfidence: 85, autoReview: false })
+const ai = reactive(saved?.ai || { ...defaultSettings.ai })
 
 // Security
-const sec = reactive({
-  minPasswordLen: 8, sessionTimeout: 60,
-  requireUppercase: true, requireNumber: true, requireSymbol: false,
-  twoFactor: false, logAllActions: true,
-})
+const sec = reactive(saved?.sec || { ...defaultSettings.sec })
 const secOptions = [
   { key: 'requireUppercase', label: 'Yêu cầu chữ hoa', desc: 'Mật khẩu phải chứa ít nhất 1 chữ cái viết hoa' },
   { key: 'requireNumber',    label: 'Yêu cầu số',      desc: 'Mật khẩu phải chứa ít nhất 1 chữ số' },
@@ -257,39 +288,69 @@ const secOptions = [
   { key: 'logAllActions',    label: 'Ghi nhật ký toàn bộ hoạt động', desc: 'Lưu log tất cả thao tác người dùng' },
 ]
 
-// Logs mock
-const logs = ref([
-  { id:1, type:'INFO',  message:'Người dùng admin đăng nhập thành công',        actor:'admin',     timestamp: new Date(Date.now()-3600000).toISOString() },
-  { id:2, type:'INFO',  message:'Hồ sơ #HS-042 được phê duyệt',                 actor:'reviewer1', timestamp: new Date(Date.now()-7200000).toISOString() },
-  { id:3, type:'WARN',  message:'5 lần đăng nhập thất bại từ IP 192.168.1.10',  actor:'system',    timestamp: new Date(Date.now()-14400000).toISOString() },
-  { id:4, type:'ERROR', message:'Kết nối AI timeout - thử lại sau 30 giây',      actor:'system',    timestamp: new Date(Date.now()-86400000).toISOString() },
-  { id:5, type:'INFO',  message:'Xuất báo cáo Q1/2025 thành công',             actor:'finance1',  timestamp: new Date(Date.now()-172800000).toISOString() },
-])
+// Logs — loaded from API
+const logs = ref([])
 
-// Notification channels
-const notifChannels = reactive([
-  { key:'email',   label:'Email',           desc:'Gửi qua SMTP đến địa chỉ email người dùng',       icon:'mail',             iconBg:'bg-blue-100 text-blue-600',    enabled:true },
-  { key:'inapp',   label:'Trong ứng dụng',  desc:'Hiển thị trong màn hình Thông báo',               icon:'notifications',    iconBg:'bg-primary/10 text-primary',   enabled:true },
-  { key:'sms',     label:'SMS',             desc:'Gửi qua nhà mạng (cần cấu hình API)',             icon:'sms',              iconBg:'bg-emerald-100 text-emerald-600', enabled:false },
-])
+onMounted(async () => {
+  try {
+    const res = await http.get('/audit-logs', { params: { page: 0, size: 10 } })
+    const list = res.data?.content || res.data || []
+    logs.value = list.map(l => ({
+      id: l.id,
+      type: l.action?.includes('LOGIN_FAILED') ? 'WARN' : (l.action?.includes('ERROR') ? 'ERROR' : 'INFO'),
+      message: l.details || `${l.action} bởi ${l.username}`,
+      actor: l.username || 'system',
+      timestamp: l.createdAt || new Date().toISOString(),
+    }))
+  } catch (e) {
+    console.error('Lỗi tải nhật ký:', e)
+    logs.value = []
+  }
+})
 
-const notifEvents = reactive([
-  { key:'submitted', label:'Hồ sơ được nộp thành công',    desc:'Gửi thông báo xác nhận cho người nộp',         enabled:true },
-  { key:'approved',  label:'Hồ sơ được phê duyệt',         desc:'Gửi thông báo cho người nộp và cán bộ',        enabled:true },
-  { key:'rejected',  label:'Hồ sơ bị từ chối',             desc:'Gửi thông báo kèm lý do từ chối',             enabled:true },
-  { key:'payment',   label:'Đã thực hiện chi trả',          desc:'Thông báo hoàn tất chi trả đến người nhận',    enabled:true },
-  { key:'reminder',  label:'Nhắc nộp hồ sơ còn thiếu',     desc:'Nhắc sau 3 ngày nếu hồ sơ thiếu tài liệu',    enabled:false },
-])
-
-// System status
-const systemStatus = [
-  { label:'Trạng thái API',       value:'Online',     sub:'Phản hồi 120ms',       ok:true },
-  { label:'Cơ sở dữ liệu',       value:'Ổn định',    sub:'Kết nối PostgreSQL',   ok:true },
-  { label:'Dịch vụ AI',          value:'Online',     sub:'Accuracy 94.3%',       ok:true },
-  { label:'Dung lượng lưu trữ',  value:'42%',        sub:'4.2 / 10 GB đã dùng',  ok:true },
-  { label:'Phiên hoạt động',      value:'7',          sub:'Người dùng trực tuyến', ok:true },
-  { label:'Uptime',              value:'99.8%',       sub:'30 ngày qua',          ok:true },
+// Notification channels (UI definitions + persisted enabled state)
+const channelDefs = [
+  { key:'email',   label:'Email',           desc:'Gửi qua SMTP đến địa chỉ email người dùng',       icon:'mail',             iconBg:'bg-blue-100 text-blue-600' },
+  { key:'inapp',   label:'Trong ứng dụng',  desc:'Hiển thị trong màn hình Thông báo',               icon:'notifications',    iconBg:'bg-primary/10 text-primary' },
+  { key:'sms',     label:'SMS',             desc:'Gửi qua nhà mạng (cần cấu hình API)',             icon:'sms',              iconBg:'bg-emerald-100 text-emerald-600' },
 ]
+const savedChannels = saved?.notifChannels || defaultSettings.notifChannels
+const notifChannels = reactive(channelDefs.map(c => ({
+  ...c, enabled: savedChannels.find(s => s.key === c.key)?.enabled ?? false,
+})))
+
+const eventDefs = [
+  { key:'submitted', label:'Hồ sơ được nộp thành công',    desc:'Gửi thông báo xác nhận cho người nộp' },
+  { key:'approved',  label:'Hồ sơ được phê duyệt',         desc:'Gửi thông báo cho người nộp và cán bộ' },
+  { key:'rejected',  label:'Hồ sơ bị từ chối',             desc:'Gửi thông báo kèm lý do từ chối' },
+  { key:'payment',   label:'Đã thực hiện chi trả',          desc:'Thông báo hoàn tất chi trả đến người nhận' },
+  { key:'reminder',  label:'Nhắc nộp hồ sơ còn thiếu',     desc:'Nhắc sau 3 ngày nếu hồ sơ thiếu tài liệu' },
+]
+const savedEvents = saved?.notifEvents || defaultSettings.notifEvents
+const notifEvents = reactive(eventDefs.map(e => ({
+  ...e, enabled: savedEvents.find(s => s.key === e.key)?.enabled ?? false,
+})))
+
+// System status — loaded dynamically
+const systemStatus = ref([])
+
+// Load system status on mount (added to existing onMounted)
+const loadSystemStatus = async () => {
+  try {
+    const res = await http.get('/actuator/health').catch(() => null)
+    const isUp = res?.data?.status === 'UP'
+    systemStatus.value = [
+      { label:'Trạng thái API',      value: isUp ? 'Online' : 'Offline',  sub: isUp ? 'Hoạt động bình thường' : 'Không phản hồi', ok: isUp },
+      { label:'Cơ sở dữ liệu',      value: isUp ? 'Ổn định' : '—',      sub:'Kết nối MongoDB',   ok: isUp },
+      { label:'Dịch vụ AI',         value: isUp ? 'Online' : '—',       sub:'Sẵn sàng',          ok: isUp },
+    ]
+  } catch {
+    systemStatus.value = [
+      { label:'Trạng thái API', value:'Offline', sub:'Không thể kết nối', ok:false },
+    ]
+  }
+}
+loadSystemStatus()
 
 const sysActions = [
   { icon:'cached',        label:'Xóa cache hệ thống',    desc:'Làm mới bộ nhớ tạm — không ảnh hưởng dữ liệu',     danger:false, fn: () => ui.showSuccess('Đã xóa cache!') },
@@ -302,7 +363,8 @@ const sysActions = [
 
 async function saveGeneral() {
   saving.value = true
-  await new Promise(r => setTimeout(r, 600))
+  await new Promise(r => setTimeout(r, 400))
+  persistSettings()
   saving.value = false
   ui.showSuccess('Đã lưu cài đặt hệ thống!')
 }

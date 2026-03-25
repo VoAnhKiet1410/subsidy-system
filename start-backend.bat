@@ -17,15 +17,23 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b 1
 )
 
-echo [1/2] Build project (dung Maven Wrapper - khong can cai Maven)...
-call mvnw.cmd clean package -DskipTests -q
-if %ERRORLEVEL% NEQ 0 (
-    echo [LOI] Build that bai! Xem log loi o tren.
-    pause
-    exit /b 1
+REM Neu truyen tham so --build thi build lai tu source
+if "%1"=="--build" (
+    echo [BUILD] Build project tu source code...
+    call mvnw.cmd clean package -DskipTests -q
+    if %ERRORLEVEL% NEQ 0 (
+        echo [LOI] Build that bai! Xem log loi o tren.
+        pause
+        exit /b 1
+    )
+    echo [OK] Build thanh cong! Cap nhat app.jar...
+    copy /Y "target\tro-cap-backend-1.0.0.jar" "app.jar" >nul
 )
 
-echo [2/2] Khoi chay server tren port 8080...
+echo [OK] Khoi chay server tren port 8080...
 echo.
-java -jar target\tro-cap-backend-1.0.0.jar
+echo      Tip: start-backend.bat           = chay nhanh (khong build lai)
+echo      Tip: start-backend.bat --build   = build tu source roi chay
+echo.
+java -jar app.jar
 pause
