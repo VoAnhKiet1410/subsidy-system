@@ -1,7 +1,7 @@
 spring:
   data:
     mongodb:
-      uri: mongodb://localhost:27017/trocap_test
+      uri: mongodb+srv://minhtri24092004_db_user:db.trocap@hethongqltrocapxh.mongodb.net/trocap?retryWrites=true&w=majority
       auto-index-creation: true
 
 jwt:

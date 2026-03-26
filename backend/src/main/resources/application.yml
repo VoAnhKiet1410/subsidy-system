@@ -4,7 +4,7 @@ spring:
 
   data:
     mongodb:
-      uri: mongodb://localhost:27017/trocap
+      uri: mongodb+srv://minhtri24092004_db_user:db.trocap@hethongqltrocapxh.lpmfoic.mongodb.net/trocap?retryWrites=true&w=majority&appName=HeThongQLTroCapXH
       auto-index-creation: true
 
   jackson:
@@ -18,8 +18,8 @@ server:
 # JWT Configuration
 jwt:
   secret: TroCapXaHoi2024SecretKeyForJWTTokenGenerationMustBeLongEnough256Bits!!
-  expiration: 86400000  # 24 hours in milliseconds
-  refresh-expiration: 604800000  # 7 days in milliseconds
+  expiration: 86400000
+  refresh-expiration: 604800000
 
 # CORS
 cors:
