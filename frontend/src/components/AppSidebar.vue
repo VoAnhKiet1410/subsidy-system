@@ -123,7 +123,7 @@ const allNavItems = [
   { path: '/chuong-trinh', icon: 'assignment', label: authStore.isCitizen ? 'Chương trình trợ cấp' : 'Quản lý chương trình', group: 'operations', roles: ['ADMIN', 'CITIZEN'] },
   { path: '/ho-so', icon: 'folder_shared', label: authStore.isCitizen ? 'Hồ sơ của tôi' : 'Quản lý hồ sơ', group: 'operations', roles: ['ADMIN', 'OFFICER', 'ACCOUNTANT', 'CITIZEN'] },
   { path: '/xet-duyet-ai', icon: 'psychology', label: 'Xét duyệt AI', group: 'operations', roles: ['ADMIN', 'OFFICER'] },
-  { path: '/doi-tuong', icon: 'groups', label: 'Đối tượng hưởng', group: 'operations', roles: ['ADMIN', 'OFFICER'] },
+  { path: '/doi-tuong', icon: 'groups', label: 'Đối tượng', group: 'operations', roles: ['ADMIN', 'OFFICER'] },
 
   // finance
   { path: '/ngan-sach', icon: 'account_balance_wallet', label: 'Nguồn quỹ & Chi trả', group: 'finance', roles: ['ADMIN', 'ACCOUNTANT'] },

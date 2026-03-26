@@ -143,18 +143,18 @@
               <span v-if="doc.ketQuaOcr || doc.ket_qua_ocr" class="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700 flex-shrink-0">✓ OCR xong</span>
               <span v-else class="px-2.5 py-1 rounded-full text-[10px] font-black bg-slate-100 text-slate-500 flex-shrink-0">Chưa OCR</span>
               <div class="flex gap-2 flex-shrink-0">
-                <a v-if="doc.duongDanFile || doc.duong_dan_file"
-                  :href="'/api/files/' + (doc.duongDanFile || doc.duong_dan_file)"
-                  target="_blank"
-                  class="p-2 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">
+                <button v-if="doc.duongDanFile || doc.duong_dan_file"
+                  @click="viewDoc(doc.duongDanFile || doc.duong_dan_file)"
+                  class="p-2 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"
+                  title="Xem tài liệu">
                   <span class="material-symbols-outlined text-sm">visibility</span>
-                </a>
-                <a v-if="doc.duongDanFile || doc.duong_dan_file"
-                  :href="'/api/files/' + (doc.duongDanFile || doc.duong_dan_file)"
-                  download
-                  class="p-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
+                </button>
+                <button v-if="doc.duongDanFile || doc.duong_dan_file"
+                  @click="downloadDoc(doc.duongDanFile || doc.duong_dan_file)"
+                  class="p-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                  title="Tải xuống">
                   <span class="material-symbols-outlined text-sm">download</span>
-                </a>
+                </button>
               </div>
             </div>
           </div>
@@ -437,6 +437,38 @@
       </div>
     </Teleport>
 
+    <!-- ── VIEW DOC MODAL ── -->
+    <Teleport to="body">
+      <div v-if="showViewModal" class="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 lg:p-10" @click.self="showViewModal=false; viewFileUrl=''; viewCurrentFilename=''">
+        <div class="bg-white rounded-3xl shadow-2xl w-full h-full max-w-6xl overflow-hidden flex flex-col">
+          <div class="px-6 py-4 border-b flex items-center justify-between bg-slate-50">
+            <h3 class="text-lg font-black text-slate-800 flex items-center gap-2">
+              <span class="material-symbols-outlined text-primary">description</span>
+              Xem tài liệu
+            </h3>
+            <div class="flex items-center gap-2">
+              <a v-if="viewCurrentFilename" :href="'/api/files/' + viewCurrentFilename" download
+                class="px-4 py-2 bg-primary/10 text-primary text-sm font-bold rounded-xl hover:bg-primary/20 flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm">download</span> Tải xuống
+              </a>
+              <button @click="showViewModal=false; viewFileUrl=''; viewCurrentFilename=''" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-slate-200 text-slate-500 transition-colors">
+                <span class="material-symbols-outlined">close</span>
+              </button>
+            </div>
+          </div>
+          <div class="flex-1 bg-slate-100 p-2">
+             <iframe v-if="viewFileUrl" :src="viewFileUrl"
+               class="w-full h-full rounded-xl border-none shadow-sm"
+               @error="viewFileUrl=''"
+             ></iframe>
+             <div v-else class="flex items-center justify-center h-full text-slate-400">
+               <span class="material-symbols-outlined text-5xl">description</span>
+             </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
   </div>
 </template>
 
@@ -454,6 +486,9 @@ const loading = ref(true)
 const activeTab = ref(route.query.tab || 'overview')
 const showRejectModal = ref(false)
 const showPayModal = ref(false)
+const showViewModal = ref(false)
+const viewFileUrl = ref('')
+const viewCurrentFilename = ref('')
 const rejectReason = ref('')
 const payForm = ref({ so_tien: '', phuong_thuc: 'CHUYEN_KHOAN', ngay_chi_tra: new Date().toISOString().slice(0,10), ghi_chu: '' })
 
@@ -529,12 +564,17 @@ async function approveApp() {
     // Bước 1: Nếu đang SUBMITTED → chuyển UNDER_REVIEW trước
     if (app.value.trang_thai === 'SUBMITTED') {
       await http.patch(`/applications/${app.value.id}/under-review`)
-      app.value.trang_thai = 'UNDER_REVIEW'
     }
     // Bước 2: UNDER_REVIEW → APPROVED
     await http.patch(`/applications/${app.value.id}/approve`)
-    app.value.trang_thai = 'APPROVED'
-    ui.showSuccess(`Đã phê duyệt hồ sơ #HS-${app.value.id}!`)
+
+    // Reload từ server để đảm bảo trạng thái chính xác
+    const resApp = await http.get(`/applications/${app.value.id}`)
+    const a = resApp.data || {}
+    app.value.trang_thai = a.trangThai || a.trang_thai || 'APPROVED'
+    app.value.maHoSo = a.maHoSo || a.ma_ho_so || app.value.maHoSo
+
+    ui.showSuccess(`Đã phê duyệt hồ sơ ${app.value.maHoSo || '#HS-' + app.value.id?.substring(0,8)}!`)
   } catch (e) {
     ui.showError('Phê duyệt thất bại: ' + (e.response?.data?.message || e.message))
   }
@@ -545,12 +585,17 @@ async function confirmReject() {
     // Bước 1: Nếu đang SUBMITTED → chuyển UNDER_REVIEW trước
     if (app.value.trang_thai === 'SUBMITTED') {
       await http.patch(`/applications/${app.value.id}/under-review`)
-      app.value.trang_thai = 'UNDER_REVIEW'
     }
     // Bước 2: UNDER_REVIEW → REJECTED
     await http.patch(`/applications/${app.value.id}/reject`, { lyDoTuChoi: rejectReason.value })
-    app.value.trang_thai = 'REJECTED'
-    app.value.ly_do_tu_choi = rejectReason.value
+
+    // Reload từ server để đảm bảo trạng thái chính xác (như approveApp)
+    const resApp = await http.get(`/applications/${app.value.id}`)
+    const a = resApp.data || {}
+    app.value.trang_thai = a.trangThai || a.trang_thai || 'REJECTED'
+    app.value.ly_do_tu_choi = a.lyDoTuChoi || a.ly_do_tu_choi || rejectReason.value
+    app.value.maHoSo = a.maHoSo || a.ma_ho_so || app.value.maHoSo
+
     showRejectModal.value = false
     ui.showSuccess('Hồ sơ đã bị từ chối.')
   } catch (e) {
@@ -605,12 +650,28 @@ async function confirmPaymentSuccess(payId) {
 function sendNotif() { ui.showSuccess('Đã gửi thông báo đến người nộp!') }
 function printApp()  { window.print() }
 
+function viewDoc(filename) {
+  viewCurrentFilename.value = filename
+  viewFileUrl.value = `/api/files/${filename}`
+  showViewModal.value = true
+}
+
+function downloadDoc(filename) {
+  const link = document.createElement('a')
+  link.href = `/api/files/${filename}`
+  link.setAttribute('download', filename)
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+}
+
 function payStyle(s) {
   const map = {
-    PENDING:    { badge:'bg-slate-100 text-slate-500',    label:'Chưa chi' },
-    PROCESSING: { badge:'bg-amber-100 text-amber-700',    label:'Đang xử lý' },
-    COMPLETED:  { badge:'bg-emerald-100 text-emerald-700',label:'Đã chi' },
-    FAILED:     { badge:'bg-red-100 text-red-600',        label:'Thất bại' },
+    PENDING:    { badge:'bg-slate-100 text-slate-500',     label:'Chưa chi' },
+    PROCESSING: { badge:'bg-amber-100 text-amber-700',     label:'Đang xử lý' },
+    SUCCESS:    { badge:'bg-emerald-100 text-emerald-700', label:'Đã chi' },
+    COMPLETED:  { badge:'bg-emerald-100 text-emerald-700', label:'Đã chi' },
+    FAILED:     { badge:'bg-red-100 text-red-600',         label:'Thất bại' },
   }
   return map[s] || { badge:'bg-slate-100 text-slate-400', label:'—' }
 }
@@ -624,10 +685,11 @@ function formatVnd(v)  {
 
 onMounted(async () => {
   try {
-    const [resApp, resUsers, resProgs, resCats, resPays, resDocs] = await Promise.all([
+    const [resApp, resUsers, resProgs, resBenefs, resBenefGroups, resPays, resDocs] = await Promise.all([
       http.get(`/applications/${route.params.id}`),
       http.get('/users', { params: { size: 1000 } }).catch(()=>({data:[]})),
       http.get('/programs', { params: { size: 500 } }).catch(()=>({data:[]})),
+      http.get('/beneficiaries', { params: { size: 1000 } }).catch(()=>({data:[]})),
       http.get('/beneficiary-groups', { params: { size: 1000 } }).catch(()=>({data:[]})),
       applicationsApi.getPaymentsByApplication(route.params.id).catch(()=>({data:[]})),
       applicationsApi.getDocuments(route.params.id).catch(()=>({data:[]})),
@@ -640,11 +702,14 @@ onMounted(async () => {
     // Attempt mappings
     const usersList = resUsers.data?.content || resUsers.data || [];
     const progsList = resProgs.data?.content || resProgs.data || [];
-    const catsList = resCats.data?.content || resCats.data || [];
+    const benefsList = resBenefs.data?.content || resBenefs.data || [];
+    const benefGroupsList = resBenefGroups.data?.content || resBenefGroups.data || [];
 
     const user = usersList.find(u => u.id === a.nguoiDungId || u.username === a.nguoiDungId) || {};
     const prog = progsList.find(p => p.id === a.chuongTrinhId) || {};
-    const cat = catsList.find(c => c.id === a.doiTuongId) || {};
+    // Tìm đối tượng trong cả beneficiaries (cá nhân) VÀ beneficiary_groups (nhóm)
+    const benef = benefsList.find(b => b.id === a.doiTuongId) || {};
+    const benefGroup = benefGroupsList.find(g => g.id === a.doiTuongId) || {};
 
     app.value = {
       ...a,
@@ -667,8 +732,8 @@ onMounted(async () => {
         ngay_ket_thuc: prog.endDate || prog.ngayKetThuc
       },
       doi_tuong: {
-        ten_doi_tuong: cat.fullName || cat.name || cat.tenDoiTuong || '—',
-        mo_ta: cat.moTa || cat.description
+        ten_doi_tuong: benef.fullName || benefGroup.tenDoiTuong || benefGroup.name || benef.name || '—',
+        mo_ta: benef.category || benefGroup.moTa || benef.moTa || ''
       },
       diem_uu_tien: a.aiReview?.diemUuTien || a.diemUuTien || null,
       danh_gia_ai: a.aiReview ? {

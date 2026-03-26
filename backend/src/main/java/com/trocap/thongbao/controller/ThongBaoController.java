@@ -32,18 +32,28 @@ public class ThongBaoController {
 
     // ─── GET danh sách thông báo (của người dùng hiện tại) ──────────
     @GetMapping
-    @Operation(summary = "Danh sách thông báo của tôi (lọc daDoc, phân trang)")
+    @Operation(summary = "Danh sách thông báo của tôi (hoặc tất cả nếu là ADMIN)")
     public ResponseEntity<ApiResponse<PageResponse<ThongBao>>> findMyNotifications(
             Principal principal,
             @RequestParam(required = false) Boolean daDoc,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "100") int size) {
 
-        String nguoiDungId = resolveUserId(principal);
+        NguoiDung user = nguoiDungRepository.findByUsername(principal.getName())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Không tìm thấy người dùng: " + principal.getName()));
+
         var pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
 
+        // Nếu là ADMIN, lấy tất cả thông báo
+        if (user.getRoles() != null && user.getRoles().contains("ADMIN")) {
+            return ResponseEntity.ok(ApiResponse.success(PageResponse.of(
+                    thongBaoService.findAll(daDoc, pageable))));
+        }
+
+        // Nếu không phải ADMIN, chỉ lấy của người dùng hiện tại
         return ResponseEntity.ok(ApiResponse.success(PageResponse.of(
-                thongBaoService.findByNguoiDungId(nguoiDungId, daDoc, pageable))));
+                thongBaoService.findByNguoiDungId(user.getId(), daDoc, pageable))));
     }
 
     // ─── GET đếm chưa đọc ──────────────────────────────────────────

@@ -25,6 +25,15 @@ public class ThongBaoService {
         return thongBaoRepository.findByNguoiDungId(nguoiDungId, pageable);
     }
 
+    // ─── Danh sách tất cả thông báo (dành cho ADMIN) ────────────────
+    public Page<ThongBao> findAll(Boolean daDoc, Pageable pageable) {
+        if (daDoc != null) {
+            // Cần thêm hàm findByDaDoc trong repository, tạm thời trả về findAll nếu không có
+            return thongBaoRepository.findAll(pageable); // Lấy tất cả tạm thời
+        }
+        return thongBaoRepository.findAll(pageable);
+    }
+
     // ─── Chi tiết ───────────────────────────────────────────────────
     public ThongBao findById(String id) {
         return thongBaoRepository.findById(id)

@@ -272,15 +272,15 @@ const userName = computed(() => authStore.user?.fullName || authStore.user?.user
 const todayFormatted = now.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })
 
 // ─── Stats ────────────────────────────────────────────────────
-const stats = ref({ total: 0, pending: 0, approved: 0, rejected: 0, paid: 0, remaining: 0 })
+const stats = ref({ total: 0, pending: 0, approved: 0, rejected: 0, paid: 0, remaining: 0, trends: { total: 0, pending: 0, approved: 0, rejected: 0, paid: 0, remaining: 0 } })
 
 const statCards = computed(() => [
-  { label: 'Tổng hồ sơ nộp',     value: stats.value.total.toLocaleString('vi-VN'),   icon: 'folder_shared',          iconBg: 'bg-blue-100 text-blue-600',      bg: 'bg-blue-500',    trend: 0 },
-  { label: 'Chờ xét duyệt',      value: stats.value.pending.toLocaleString('vi-VN'), icon: 'pending_actions',        iconBg: 'bg-amber-100 text-amber-600',    bg: 'bg-amber-500',   trend: 0 },
-  { label: 'Đã phê duyệt',       value: stats.value.approved.toLocaleString('vi-VN'),icon: 'check_circle',           iconBg: 'bg-emerald-100 text-emerald-600',bg: 'bg-emerald-500', trend: 0 },
-  { label: 'Bị từ chối',         value: stats.value.rejected.toLocaleString('vi-VN'),icon: 'cancel',                 iconBg: 'bg-red-100 text-red-600',        bg: 'bg-red-500',     trend: 0 },
-  { label: 'Tổng đã chi trả',    value: formatVnd(stats.value.paid),                 icon: 'payments',               iconBg: 'bg-purple-100 text-purple-600',  bg: 'bg-purple-500',  trend: 0 },
-  { label: 'Ngân sách còn lại',  value: formatVnd(stats.value.remaining),            icon: 'account_balance_wallet', iconBg: 'bg-teal-100 text-teal-600',      bg: 'bg-teal-500',    trend: 0 },
+  { label: 'Tổng hồ sơ nộp',     value: stats.value.total.toLocaleString('vi-VN'),   icon: 'folder_shared',          iconBg: 'bg-blue-100 text-blue-600',      bg: 'bg-blue-500',    trend: stats.value.trends.total || 0 },
+  { label: 'Chờ xét duyệt',      value: stats.value.pending.toLocaleString('vi-VN'), icon: 'pending_actions',        iconBg: 'bg-amber-100 text-amber-600',    bg: 'bg-amber-500',   trend: stats.value.trends.pending || 0 },
+  { label: 'Đã phê duyệt',       value: stats.value.approved.toLocaleString('vi-VN'),icon: 'check_circle',           iconBg: 'bg-emerald-100 text-emerald-600',bg: 'bg-emerald-500', trend: stats.value.trends.approved || 0 },
+  { label: 'Bị từ chối',         value: stats.value.rejected.toLocaleString('vi-VN'),icon: 'cancel',                 iconBg: 'bg-red-100 text-red-600',        bg: 'bg-red-500',     trend: stats.value.trends.rejected || 0 },
+  { label: 'Tổng đã chi trả',    value: formatVnd(stats.value.paid),                 icon: 'payments',               iconBg: 'bg-purple-100 text-purple-600',  bg: 'bg-purple-500',  trend: stats.value.trends.paid || 0 },
+  { label: 'Ngân sách còn lại',  value: formatVnd(stats.value.remaining),            icon: 'account_balance_wallet', iconBg: 'bg-teal-100 text-teal-600',      bg: 'bg-teal-500',    trend: stats.value.trends.remaining || 0 },
 ])
 
 // ─── Alerts ─── (loaded from API data)
@@ -353,59 +353,129 @@ onMounted(() => loadData())
 async function loadData() {
   loading.value = true
 
+  // Khởi tạo payList chung để dùng tính trend
+  let payList = []
+
   // Thử gọi API cho stats
   try {
     const res = await applicationsApi.getStats()
     const d = res.data || {}
     stats.value = {
       total: d.total ?? 0,
-      pending: d.SUBMITTED ?? d.pending ?? 0,
-      approved: d.APPROVED ?? d.approved ?? 0,
+      pending: (d.SUBMITTED ?? d.pending ?? 0) + (d.UNDER_REVIEW ?? 0),
+      // CỘNG THÊM PAID VÀO APPROVED ĐỂ THỂ HIỆN RÕ SỐ HỒ SƠ ĐÃ ĐƯỢC DUYỆT TRONG THỰC TẾ
+      approved: (d.APPROVED ?? d.approved ?? 0) + (d.PAID ?? d.paid ?? 0),
       rejected: d.REJECTED ?? d.rejected ?? 0,
-      paid: d.PAID ?? d.paid ?? 0,
+      paid: 0,
       remaining: d.remaining ?? d.con_lai ?? 0,
+      trends: { total: 0, pending: 0, approved: 0, rejected: 0, paid: 0, remaining: 0 }
     }
+
+    // Lấy tổng tiền chi trả thực từ API /payments
+    try {
+      const payRes = await http.get('/payments', { params: { size: 1000, trangThai: 'SUCCESS' } })
+      payList = payRes.data?.content || payRes.data || []
+      const totalPaid = Array.isArray(payList)
+        ? payList.reduce((sum, p) => sum + (p.soTien || p.so_tien || 0), 0)
+        : 0
+      stats.value.paid = totalPaid
+    } catch { /* giữ nguyên 0 nếu lỗi */ }
   } catch (e) {
     console.error('Lỗi tải thống kê:', e)
-    stats.value = { total: 0, pending: 0, approved: 0, rejected: 0, paid: 0, remaining: 0 }
+    stats.value = { total: 0, pending: 0, approved: 0, rejected: 0, paid: 0, remaining: 0, trends: { total: 0, pending: 0, approved: 0, rejected: 0, paid: 0, remaining: 0 } }
   }
 
-  // Program Bar Chart — lấy từ API /programs
+  // Lấy dữ liệu hồ sơ chung cho biểu đồ và recent 
+  let allApps = []
+  let usersList = []
+  let progsList = []
   try {
-    const progRes = await http.get('/programs', { params: { size: 100 } })
-    const progList = progRes.data?.content || progRes.data || []
-    if (progList.length) {
-      const progNames = progList.map(p => (p.tenChuongTrinh || p.name || '—').split(' ').slice(0, 3).join(' '))
-      const progCounts = progList.map(p => p.soHoSo ?? 0)
-      const bgColors = ['#3b82f6', '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#14b8a6', '#8b5cf6', '#06b6d4']
-      programChartData.value = {
-        labels: progNames,
-        datasets: [{ data: progCounts, backgroundColor: bgColors.slice(0, progNames.length), hoverBackgroundColor: bgColors.slice(0, progNames.length) }]
+    const [resApps, resUsers, resProgs] = await Promise.all([
+      applicationsApi.getAll({ page: 0, size: 1000, sort: 'createdAt,desc' }),
+      http.get('/users', { params: { size: 1000 } }).catch(()=>({data:[]})),
+      http.get('/programs', { params: { size: 500 } }).catch(()=>({data:[]}))
+    ])
+    allApps = resApps.data?.content || resApps.data || []
+    usersList = resUsers.data?.content || resUsers.data || []
+    progsList = resProgs.data?.content || resProgs.data || []
+  } catch (e) {
+    console.error('Lỗi tải dữ liệu cơ sở:', e)
+  }
+
+  // Program Bar Chart
+  if (progsList.length) {
+    const progNames = progsList.map(p => (p.tenChuongTrinh || p.name || '—').split(' ').slice(0, 3).join(' '))
+    
+    // Đếm số hồ sơ theo chuongTrinhId
+    const countMap = {}
+    allApps.forEach(hs => {
+      const cId = hs.chuong_trinh?.id || hs.chuongTrinhId
+      if (cId) {
+        countMap[cId] = (countMap[cId] || 0) + 1
       }
+    })
+    const progCounts = progsList.map(p => countMap[p.id] || 0)
+    
+    const bgColors = ['#3b82f6', '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#14b8a6', '#8b5cf6', '#06b6d4']
+    programChartData.value = {
+      labels: progNames,
+      datasets: [{ data: progCounts, backgroundColor: bgColors.slice(0, progNames.length), hoverBackgroundColor: bgColors.slice(0, progNames.length) }]
     }
-  } catch { /* charts optional */ }
+  }
 
   // Doughnut data — from stats
-  const statusData = [stats.value.pending, stats.value.approved, stats.value.rejected, 0]
+  const statusData = [
+    stats.value.pending, 
+    stats.value.approved, 
+    stats.value.rejected, 
+    stats.value.total - (stats.value.pending + stats.value.approved + stats.value.rejected)
+  ]
   const statusColors = ['#f59e0b', '#10b981', '#ef4444', '#6366f1']
-  const statusLabels = ['Chờ duyệt', 'Phê duyệt', 'Từ chối', 'Đang xử lý']
+  const statusLabels = ['Chờ duyệt', 'Phê duyệt', 'Từ chối', 'Bản nháp/Khác']
   statusChartData.value = {
     labels: statusLabels,
     datasets: [{ data: statusData, backgroundColor: statusColors, borderWidth: 0, hoverOffset: 6 }]
   }
   statusLegend.value = statusLabels.map((l, i) => ({ label: l, color: statusColors[i], count: statusData[i] }))
 
-  // Trend Line Chart — chưa có API trend, hiển thị trống
-  trendChartData.value = null
+  // Trend Line Chart — hiển thị 6 tháng gần nhất từ allApps
+  if (allApps.length) {
+    const months = []
+    const trendCounts = []
+    const nowD = new Date()
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(nowD.getFullYear(), nowD.getMonth() - i, 1)
+      months.push(`${d.getMonth() + 1}/${d.getFullYear()}`)
+      
+      const count = allApps.filter(a => {
+        const ad = new Date(a.ngay_nop_ho_so || a.createdAt || a.created_at);
+        return ad.getMonth() === d.getMonth() && ad.getFullYear() === d.getFullYear();
+      }).length;
+      trendCounts.push(count);
+    }
+    trendChartData.value = {
+      labels: months,
+      datasets: [{
+        label: 'Hồ sơ mới', data: trendCounts, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', fill: true,
+      }]
+    }
+  } else {
+    trendChartData.value = null
+  }
 
-  // Fund horizontal bar — lấy từ API /nguon-quy
+  // Fund horizontal bar + Compute total remaining budget — lấy từ API /funding-sources
   try {
-    const fundRes = await http.get('/nguon-quy', { params: { size: 50 } })
+    const fundRes = await http.get('/funding-sources', { params: { size: 100 } })
     const fundList = fundRes.data?.content || fundRes.data || []
     if (fundList.length) {
       const fundNames = fundList.map(f => f.tenNguonQuy || f.ten_nguon_quy || '—')
       const spentArr = fundList.map(f => (f.daSuDung || f.da_su_dung || 0) / 1e9)
       const remainArr = fundList.map(f => (f.conLai || f.con_lai || 0) / 1e9)
+      
+      // Calculate total remaining
+      const totalRemain = fundList.reduce((sum, f) => sum + (f.conLai || f.con_lai || 0), 0)
+      stats.value.remaining = totalRemain
+
       fundChartData.value = {
         labels: fundNames,
         datasets: [
@@ -416,25 +486,16 @@ async function loadData() {
     }
   } catch { /* charts optional */ }
 
-  // Recent hồ sơ — thử từ API
   const bgs = ['bg-blue-100 text-blue-700', 'bg-emerald-100 text-emerald-700', 'bg-amber-100 text-amber-700', 'bg-purple-100 text-purple-700', 'bg-red-100 text-red-700']
   try {
-    const [resApps, resUsers, resProgs] = await Promise.all([
-      applicationsApi.getAll({ page: 0, size: 5, sort: 'createdAt,desc' }),
-      http.get('/users', { params: { size: 1000 } }).catch(()=>({data:[]})),
-      http.get('/programs', { params: { size: 500 } }).catch(()=>({data:[]}))
-    ])
-
-    const list = resApps.data?.content || resApps.data || []
-    const usersList = resUsers.data?.content || resUsers.data || []
-    const progsList = resProgs.data?.content || resProgs.data || []
-
     const userMap = Object.fromEntries(usersList.map(u => [u.id, u.fullName || u.username]))
     const userMapByUsername = Object.fromEntries(usersList.map(u => [u.username, u.fullName || u.username]))
     const progMap = Object.fromEntries(progsList.map(p => [p.id, p.tenChuongTrinh || p.name || '—']))
 
-    if (list.length) {
-      recentHoSo.value = list.map((hs, i) => {
+    const recent5 = allApps.slice(0, 5) // Lấy 5 hồ sơ mới nhất
+
+    if (recent5.length) {
+      recentHoSo.value = recent5.map((hs, i) => {
         const uName = userMap[hs.nguoiDungId] || userMapByUsername[hs.nguoiDungId] || 'Người nộp #' + (hs.nguoiDungId||'').substring(0,4)
         return {
           id: hs.id,
@@ -480,6 +541,59 @@ async function loadData() {
     recentNotifs.value = []
   }
 
+  // Calculate actual trends (this month vs last month)
+  try {
+    const nowD = new Date()
+    const currM = nowD.getMonth()
+    const currY = nowD.getFullYear()
+    const prevD = new Date(nowD.getFullYear(), nowD.getMonth() - 1, 1)
+    const prevM = prevD.getMonth()
+    const prevY = prevD.getFullYear()
+
+    const parseDate = (d) => d ? new Date(d) : null
+    const isM = (ad, m, y) => ad && ad.getMonth() === m && ad.getFullYear() === y
+
+    // Apps curr vs prev
+    const cApps = allApps.filter(a => isM(parseDate(a.ngay_nop_ho_so || a.createdAt || a.created_at), currM, currY))
+    const pApps = allApps.filter(a => isM(parseDate(a.ngay_nop_ho_so || a.createdAt || a.created_at), prevM, prevY))
+
+    const pPending = pApps.filter(a => ['SUBMITTED','UNDER_REVIEW'].includes(a.trang_thai || a.trangThai)).length
+    const pApproved = pApps.filter(a => ['APPROVED','PAID'].includes(a.trang_thai || a.trangThai)).length
+    const pRejected = pApps.filter(a => (a.trang_thai || a.trangThai) === 'REJECTED').length
+
+    const getTrend = (curr, prev) => {
+      if (prev === 0) return curr > 0 ? 100 : 0
+      return Math.round(((curr - prev) / prev) * 100)
+    }
+
+    stats.value.trends.total = getTrend(cApps.length, pApps.length)
+    stats.value.trends.pending = getTrend(
+      cApps.filter(a => ['SUBMITTED','UNDER_REVIEW'].includes(a.trang_thai || a.trangThai)).length,
+      pPending
+    )
+    stats.value.trends.approved = getTrend(
+      cApps.filter(a => ['APPROVED','PAID'].includes(a.trang_thai || a.trangThai)).length,
+      pApproved
+    )
+    stats.value.trends.rejected = getTrend(
+      cApps.filter(a => (a.trang_thai || a.trangThai) === 'REJECTED').length,
+      pRejected
+    )
+
+    // Payments curr vs prev
+    const cPays = payList.filter(p => isM(parseDate(p.createdAt || p.created_at), currM, currY))
+    const pPays = payList.filter(p => isM(parseDate(p.createdAt || p.created_at), prevM, prevY))
+    const cPaidTotal = cPays.reduce((sum, p) => sum + (p.soTien || p.so_tien || 0), 0)
+    const pPaidTotal = pPays.reduce((sum, p) => sum + (p.soTien || p.so_tien || 0), 0)
+    stats.value.trends.paid = getTrend(cPaidTotal, pPaidTotal)
+
+    // For remaining budget, usually remaining goes down. But we can fake a small percentage or keep it 0
+    stats.value.trends.remaining = 0
+
+  } catch (e) {
+    console.warn('Không thể tính toán trend:', e)
+  }
+
   loading.value = false
 }
 
@@ -492,7 +606,7 @@ function formatVnd(v) {
 }
 
 function hoSoStatusLabel(s) {
-  return { PENDING: 'Chờ duyệt', APPROVED: 'Phê duyệt', REJECTED: 'Từ chối', REVIEWING: 'Đang xem' }[s] || s
+  return { PENDING: 'Chờ duyệt', APPROVED: 'Phê duyệt', REJECTED: 'Từ chối', REVIEWING: 'Đang xem', PAID: 'Đã chi trả' }[s] || s
 }
 function hoSoStatusClass(s) {
   return {
@@ -500,6 +614,7 @@ function hoSoStatusClass(s) {
     APPROVED:  'bg-emerald-100 text-emerald-700',
     REJECTED:  'bg-red-100 text-red-700',
     REVIEWING: 'bg-blue-100 text-blue-700',
+    PAID:      'bg-purple-100 text-purple-700',
   }[s] || 'bg-slate-100 text-slate-600'
 }
 
