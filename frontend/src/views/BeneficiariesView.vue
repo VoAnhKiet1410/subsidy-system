@@ -523,14 +523,12 @@ const myApps = ref([])
 
 // ─── Filters ─────────────────────────────────────────
 const search       = ref('')
-const filterStatus  = ref('')
-const filterProgram = ref('')
-const filterStatus = ref('')
-const filterProgram= ref('')
-const filterCategory=ref('')
-const filterDateFrom=ref('')
-const filterDateTo  =ref('')
-const filterAiScore =ref('') // 'high'|'med'|'low'|''
+const filterStatus   = ref('')
+const filterProgram  = ref('')
+const filterCategory = ref('')
+const filterDateFrom = ref('')
+const filterDateTo   = ref('')
+const filterAiScore  = ref('') // 'high'|'med'|'low'|''
 const currentPage  = ref(1)
 
 const hasFilter = computed(() => search.value||filterStatus.value||filterProgram.value||filterCategory.value||filterAiScore.value||filterDateFrom.value||filterDateTo.value)
@@ -553,7 +551,7 @@ const paginatedApps = computed(() => {
 const programs   = ref([])
 const categories = ref([])
 
-const statuses = [
+const statusOptions = [
   { val:'', label:'Tất cả trạng thái' },
   { val:'SUBMITTED',   label:'Chờ duyệt' },
   { val:'UNDER_REVIEW', label:'Đang xét' },
