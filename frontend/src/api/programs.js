@@ -2,7 +2,7 @@ import http from './http'
 
 export const programsApi = {
   // chuong_trinh_tru_cap
-  getAll: () => http.get('/programs'),
+  getAll: (params) => http.get('/programs', { params }),
   getById: (id) => http.get(`/programs/${id}`),
   filter: (status) => http.get('/programs/filter', { params: { status } }),
   create: (data) => http.post('/programs', data),

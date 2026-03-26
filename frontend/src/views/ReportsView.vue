@@ -28,13 +28,20 @@
               <p class="text-sm text-on-surface-variant">So sánh ngân sách và chi tiêu thực tế</p>
             </div>
           </div>
-          <div class="h-[280px] flex items-end justify-between gap-4 px-2">
-            <div v-for="bar in chartBars" :key="bar.label" class="flex-1 flex flex-col items-center gap-2 group">
-              <div class="w-full flex items-end gap-1 h-full">
+          <div class="flex items-end justify-between gap-4 px-2" style="height:280px">
+            <div v-if="!chartBars.length" class="w-full flex items-center justify-center text-slate-400 text-sm">Chưa có dữ liệu</div>
+            <div v-for="bar in chartBars" :key="bar.label" class="flex-1 flex flex-col items-center gap-1 group relative" style="height:100%; min-width:0">
+              <!-- Tooltip -->
+              <div class="absolute bottom-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[11px] rounded-lg px-3 py-2 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg">
+                <div class="flex items-center gap-1.5 mb-0.5"><span class="w-2 h-2 rounded-full bg-primary-fixed-dim inline-block"></span>Ngân sách: {{ formatBudget(bar.budget) }}</div>
+                <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-primary inline-block"></span>Đã chi: {{ formatBudget(bar.spent) }}</div>
+                <div class="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0" style="border-left:5px solid transparent;border-right:5px solid transparent;border-top:5px solid #1e293b"></div>
+              </div>
+              <div class="w-full flex items-end gap-1" style="height:calc(100% - 36px)">
                 <div class="bg-primary-fixed-dim w-1/2 rounded-t-lg transition-all group-hover:opacity-80" :style="{ height: bar.budgetPct }"></div>
                 <div class="bg-primary w-1/2 rounded-t-lg transition-all group-hover:opacity-80" :style="{ height: bar.spentPct }"></div>
               </div>
-              <span class="text-[10px] font-bold text-slate-400 uppercase truncate w-full text-center">{{ bar.label }}</span>
+              <span class="text-[10px] font-bold text-slate-400 text-center leading-tight w-full" style="display:block; overflow:visible; white-space:normal; word-break:break-word">{{ bar.label }}</span>
             </div>
           </div>
           <div class="mt-8 pt-6 border-t border-slate-100 flex items-center justify-center gap-8">
@@ -141,10 +148,33 @@ onMounted(async () => {
   try {
     const [dashRes, progRes] = await Promise.all([
       dashboardApi.getStats(),
-      programsApi.getAll(),
+      programsApi.getAll({ size: 1000 }),
     ])
     dashStats.value = dashRes.data
-    programs.value = progRes.data
+
+    const beneficiaryCounts = await dashboardApi.getBeneficiaryCounts()
+      .then(r => r.data || {}).catch(() => {})
+    const rawPrograms = progRes.data?.content || progRes.data || []
+    programs.value = rawPrograms.map(p => ({
+      id: p.id,
+      name: p.tenChuongTrinh || p.ten || '',
+      budget: p.nganSach || 0,
+      spent: p.daChi || 0,
+      status: p.trangThai || '',
+      beneficiaryCount: beneficiaryCounts[p.id] || 0,
+    }))
+
+    const totalBudget = programs.value.reduce((s, p) => s + p.budget, 0)
+    const totalSpent  = programs.value.reduce((s, p) => s + p.spent, 0)
+    const d = dashStats.value || {}
+    const totalApps   = (d.approvedApplications || 0) + (d.rejectedApplications || 0)
+    dashStats.value = {
+      ...d,
+      totalBudget,
+      totalSpent,
+      approvalRate: totalApps > 0 ? Math.round((d.approvedApplications || 0) / totalApps * 100) : 0,
+      totalBeneficiaries: d.totalBeneficiaries || 0,
+    }
   } catch (e) {
     console.error('Lỗi tải báo cáo:', e)
   } finally {
@@ -160,11 +190,26 @@ const usedPct = computed(() => {
 
 const chartBars = computed(() => {
   if (!programs.value.length) return []
-  const maxBudget = Math.max(...programs.value.map(p => p.budget || 0), 1)
-  return programs.value.map(p => ({
-    label: (p.name || '').split(' ').slice(0, 2).join(' '),
-    budgetPct: Math.round((p.budget || 0) / maxBudget * 100) + '%',
-    spentPct: Math.round((p.spent || 0) / maxBudget * 100) + '%',
+  const active = programs.value.filter(p => (p.budget || 0) > 0 || (p.spent || 0) > 0)
+  if (!active.length) return []
+
+  // Gom nhóm theo từ đầu tiên của tên
+  const grouped = {}
+  for (const p of active) {
+    const key = (p.name || '').split(' ').slice(0, 2).join(' ') || 'Khác'
+    if (!grouped[key]) grouped[key] = { budget: 0, spent: 0 }
+    grouped[key].budget += p.budget || 0
+    grouped[key].spent  += p.spent  || 0
+  }
+
+  const entries = Object.entries(grouped)
+  const maxVal = Math.max(...entries.map(([, v]) => Math.max(v.budget, v.spent)), 1)
+  return entries.map(([label, v]) => ({
+    label,
+    budgetPct: Math.round(v.budget / maxVal * 100) + '%',
+    spentPct:  Math.round(v.spent  / maxVal * 100) + '%',
+    budget: v.budget,
+    spent:  v.spent,
   }))
 })
 

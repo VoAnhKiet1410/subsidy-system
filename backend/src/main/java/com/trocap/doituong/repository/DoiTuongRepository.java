@@ -14,5 +14,6 @@ public interface DoiTuongRepository extends MongoRepository<DoiTuongHuongTruCap,
     Page<DoiTuongHuongTruCap> findByFullNameContainingIgnoreCase(String keyword, Pageable pageable);
     long countByCategory(String category);
     long countByStatus(String status);
+    long countByProgramId(String programId);
     boolean existsByIdNumber(String idNumber);
 }
