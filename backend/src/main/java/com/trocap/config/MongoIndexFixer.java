@@ -4,7 +4,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.MongoDbException;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.index.Index;
 import org.springframework.data.mongodb.core.index.IndexInfo;
@@ -40,8 +42,12 @@ public class MongoIndexFixer implements CommandLineRunner {
                     indexOps.dropIndex(name);
                 }
             }
+        } catch (MongoDbException e) {
+            log.error("MongoDB error while fixing beneficiaries code index: {}", e.getMessage(), e);
+        } catch (DataAccessException e) {
+            log.error("Data access error while fixing beneficiaries code index: {}", e.getMessage(), e);
         } catch (Exception e) {
-            log.warn("Không thể sửa index code/beneficiaries: {}", e.getMessage());
+            log.error("Unexpected error while fixing beneficiaries code index: {}", e.getMessage(), e);
         }
     }
 
@@ -62,8 +68,12 @@ public class MongoIndexFixer implements CommandLineRunner {
             indexOps.ensureIndex(
                     new Index().on("maHoSo", Sort.Direction.ASC)
                             .unique().sparse()
-                            .named("maHoSo_sparse_unique")
-            );
+                 MongoDbException e) {
+            log.error("MongoDB error while fixing maHoSo index: {}", e.getMessage(), e);
+        } catch (DataAccessException e) {
+            log.error("Data access error while fixing maHoSo index: {}", e.getMessage(), e);
+        } catch (Exception e) {
+            log.error("Unexpected error while fixing maHoSo index: {}", e.getMessage(), e
             log.info("Created sparse unique index 'maHoSo_sparse_unique' on applications");
 
         } catch (Exception e) {
