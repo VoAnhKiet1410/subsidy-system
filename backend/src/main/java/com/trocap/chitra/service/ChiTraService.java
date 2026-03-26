@@ -17,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -57,6 +58,7 @@ public class ChiTraService {
     }
 
     // ─── Tạo chi trả mới (PENDING) ─────────────────────────────────
+    @PreAuthorize("hasRole('OFFICER')")
     public ChiTraTruCap create(PaymentRequest request, String username) {
         // 1. Validate hồ sơ tồn tại
         HoSoHoTro hoSo = hoSoRepository.findById(request.getHoSoHoTroId())
@@ -121,11 +123,11 @@ public class ChiTraService {
         // ═══════════════════════════════════════════════════════════
         if ("SUCCESS".equals(newStatus)) {
             processSuccessPayment(payment);
-        } else if ("FAILED".equals(newStatus) || "CANCELLED".equals(newStatus)) {
-            HoSoHoTro hoSo = hoSoRepository.findById(payment.getHoSoHoTroId()).orElse(null);
-            if (hoSo != null) {
-                hoSo.setTrangThaiChiTra("FAILED");
-                hoSoRepository.save(hoSo);
+        } else if ("FAILED".equals(newStatus) || "CANCELLED".equals(newStatus)
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Không tìm thấy hồ sơ: " + payment.getHoSoHoTroId()));
+            hoSo.setTrangThaiChiTra("FAILED");
+            hoSoRepository.save(hoSo);   hoSoRepository.save(hoSo);
             }
         }
 
