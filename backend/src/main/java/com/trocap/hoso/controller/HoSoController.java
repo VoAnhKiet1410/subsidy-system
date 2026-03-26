@@ -47,6 +47,14 @@ public class HoSoController {
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "createdAt,desc") String sort) {
 
+        // Validate và giới hạn pageSize để tránh memory issue
+        if (size > 100) {
+            size = 100;
+        }
+        if (size < 1) {
+            size = 10;
+        }
+
         // Parse sort param (format: "field,direction")
         String[] sortParts = sort.split(",");
         String sortField = sortParts[0];
@@ -97,6 +105,14 @@ public class HoSoController {
             Principal principal,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
+
+        // Validate và giới hạn pageSize để tránh memory issue
+        if (size > 100) {
+            size = 100;
+        }
+        if (size < 1) {
+            size = 10;
+        }
 
         NguoiDung user = nguoiDungRepository.findByUsername(principal.getName())
                 .orElseThrow(() -> new com.trocap.common.exception.ResourceNotFoundException(

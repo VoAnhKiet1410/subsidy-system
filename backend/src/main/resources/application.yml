@@ -4,7 +4,7 @@ spring:
 
   data:
     mongodb:
-      uri: mongodb://localhost:27017/trocap
+      uri: mongodb+srv://minhtri24092004_db_user:db.trocap@hethongqltrocapxh.lpmfoic.mongodb.net/trocap?retryWrites=true&w=majority&appName=HeThongQLTroCapXH
       auto-index-creation: true
 
   jackson:
