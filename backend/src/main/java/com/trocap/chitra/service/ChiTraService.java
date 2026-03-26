@@ -93,46 +93,45 @@ public class ChiTraService {
 
     // ─── Cập nhật trạng thái chi trả ────────────────────────────────
     public ChiTraTruCap updateStatus(String id, PaymentStatusRequest request, String username) {
-        ChiTraTruCap payment = findById(id);
+    ChiTraTruCap payment = findById(id);
 
-        // Validate trạng thái hợp lệ
-        if (!VALID_STATUSES.contains(request.getTrangThai())) {
-            throw new BadRequestException(
-                    "Trạng thái không hợp lệ: " + request.getTrangThai()
-                    + ". Hợp lệ: " + VALID_STATUSES);
-        }
-
-        // Không cho sửa payment đã SUCCESS, CANCELLED, hoặc FAILED
-        if ("SUCCESS".equals(payment.getTrangThai())) {
-            throw new BadRequestException("Không thể thay đổi trạng thái giao dịch đã thành công");
-        }
-        if ("CANCELLED".equals(payment.getTrangThai())) {
-            throw new BadRequestException("Không thể thay đổi trạng thái giao dịch đã huỷ");
-        }
-        if ("FAILED".equals(payment.getTrangThai())) {
-            throw new BadRequestException("Không thể thay đổi trạng thái giao dịch đã thất bại. Vui lòng tạo giao dịch mới.");
-        }
-
-        String newStatus = request.getTrangThai();
-        payment.setTrangThai(newStatus);
-        payment.setProcessedBy(username);
-
-        // ═══════════════════════════════════════════════════════════
-        // Xử lý side-effects khi SUCCESS
-        // Xử lý side-effects khi lập mới/thành công
-        // ═══════════════════════════════════════════════════════════
-        if ("SUCCESS".equals(newStatus)) {
-            processSuccessPayment(payment);
-        } else if ("FAILED".equals(newStatus) || "CANCELLED".equals(newStatus)
-                    .orElseThrow(() -> new ResourceNotFoundException(
-                            "Không tìm thấy hồ sơ: " + payment.getHoSoHoTroId()));
-            hoSo.setTrangThaiChiTra("FAILED");
-            hoSoRepository.save(hoSo);   hoSoRepository.save(hoSo);
-            }
-        }
-
-        return chiTraRepository.save(payment);
+    // Validate trạng thái hợp lệ
+    if (!VALID_STATUSES.contains(request.getTrangThai())) {
+        throw new BadRequestException(
+                "Trạng thái không hợp lệ: " + request.getTrangThai()
+                        + ". Hợp lệ: " + VALID_STATUSES);
     }
+
+    // Không cho sửa payment đã kết thúc
+    if ("SUCCESS".equals(payment.getTrangThai())) {
+        throw new BadRequestException("Không thể thay đổi trạng thái giao dịch đã thành công");
+    }
+    if ("CANCELLED".equals(payment.getTrangThai())) {
+        throw new BadRequestException("Không thể thay đổi trạng thái giao dịch đã huỷ");
+    }
+    if ("FAILED".equals(payment.getTrangThai())) {
+        throw new BadRequestException("Không thể thay đổi trạng thái giao dịch đã thất bại. Vui lòng tạo giao dịch mới.");
+    }
+
+    String newStatus = request.getTrangThai();
+    payment.setTrangThai(newStatus);
+    payment.setProcessedBy(username);
+
+    // ===== Xử lý side-effects =====
+    if ("SUCCESS".equals(newStatus)) {
+        processSuccessPayment(payment);
+
+    } else if ("FAILED".equals(newStatus) || "CANCELLED".equals(newStatus)) {
+        HoSoHoTro hoSo = hoSoRepository.findById(payment.getHoSoHoTroId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Không tìm thấy hồ sơ: " + payment.getHoSoHoTroId()));
+
+        hoSo.setTrangThaiChiTra("FAILED");
+        hoSoRepository.save(hoSo);
+    }
+
+    return chiTraRepository.save(payment);
+}
 
     // ─── Logic xử lý khi payment SUCCESS ────────────────────────────
     private void processSuccessPayment(ChiTraTruCap payment) {

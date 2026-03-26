@@ -9,24 +9,6 @@
       <h1 class="text-2xl font-black text-slate-800">Nộp hồ sơ hỗ trợ</h1>
     </div>
 
-    <!-- PROGRESS STEPS -->
-    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5">
-      <div class="flex items-center">
-        <div v-for="(step, i) in steps" :key="i" class="flex items-center flex-1">
-          <div class="flex flex-col items-center flex-1">
-            <div :class="['w-9 h-9 rounded-full flex items-center justify-center font-black text-sm transition-all',
-              currentStep > i ? 'bg-primary text-white shadow-md shadow-primary/30'
-              : currentStep === i ? 'bg-primary text-white ring-4 ring-primary/20'
-              : 'bg-slate-100 text-slate-400']">
-              <span v-if="currentStep > i" class="material-symbols-outlined text-sm" style="font-variation-settings:'FILL' 1;">check</span>
-              <span v-else>{{ i + 1 }}</span>
-            </div>
-            <p :class="['text-[10px] font-bold mt-1.5 text-center leading-tight', currentStep >= i ? 'text-primary' : 'text-slate-400']">{{ step }}</p>
-          </div>
-          <div v-if="i < steps.length-1" :class="['h-0.5 flex-1 mx-1 -mt-5 rounded-full', currentStep > i ? 'bg-primary' : 'bg-slate-100']"></div>
-        </div>
-      </div>
-    </div>
 
     <!-- STEP 0: CHON CHUONG TRINH -->
     <div v-if="currentStep === 0" class="space-y-3">
