@@ -25,6 +25,8 @@ public class NhomDoiTuong {
 
     private String moTa;          // Mô tả chi tiết
 
+    private String category;      // THU_NHAP_THAP, KHUYET_TAT, NGUOI_GIA, TRE_EM, DON_THAN, HIV, THIEN_TAI
+
     @CreatedDate
     private LocalDateTime createdAt;
 

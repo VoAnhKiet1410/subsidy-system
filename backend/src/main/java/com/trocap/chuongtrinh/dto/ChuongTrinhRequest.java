@@ -29,4 +29,6 @@ public class ChuongTrinhRequest {
     private LocalDate ngayKetThuc;
 
     private String trangThai; // UPCOMING, OPEN, CLOSED — mặc định UPCOMING
+
+    private java.util.List<String> danhSachDoiTuong; // Danh mục đối tượng được phép
 }

@@ -72,6 +72,7 @@ public class ChuongTrinhService {
                 .ngayBatDau(request.getNgayBatDau())
                 .ngayKetThuc(request.getNgayKetThuc())
                 .trangThai(trangThai)
+                .danhSachDoiTuong(request.getDanhSachDoiTuong())
                 .createdBy(createdBy)
                 .build();
 
@@ -103,6 +104,7 @@ public class ChuongTrinhService {
         if (request.getNgayBatDau() != null) ct.setNgayBatDau(request.getNgayBatDau());
         if (request.getNgayKetThuc() != null) ct.setNgayKetThuc(request.getNgayKetThuc());
         if (request.getTrangThai() != null) ct.setTrangThai(request.getTrangThai());
+        if (request.getDanhSachDoiTuong() != null) ct.setDanhSachDoiTuong(request.getDanhSachDoiTuong());
 
         return chuongTrinhRepository.save(ct);
     }

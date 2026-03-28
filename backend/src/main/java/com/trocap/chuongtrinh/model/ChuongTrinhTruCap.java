@@ -38,6 +38,8 @@ public class ChuongTrinhTruCap {
     @Indexed
     private String trangThai;            // UPCOMING, OPEN, CLOSED
 
+    private java.util.List<String> danhSachDoiTuong; // Danh mục đối tượng được phép: THU_NHAP_THAP, KHUYET_TAT...
+
     private String createdBy;            // Username người tạo
 
     @CreatedDate

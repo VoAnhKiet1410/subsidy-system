@@ -12,9 +12,10 @@
 
     <!-- STEP 0: CHON CHUONG TRINH -->
     <div v-if="currentStep === 0" class="space-y-3">
-      <h2 class="font-black text-slate-800">Chọn chương trình trợ cấp</h2>
 
-      <!-- Loading -->
+      <!-- Bước 1: Chọn chương trình -->
+      <h2 class="font-black text-slate-800">Bước 1: Chọn chương trình bạn muốn tham gia</h2>
+
       <div v-if="loadingPrograms" class="space-y-3">
         <div v-for="i in 3" :key="i" class="bg-white rounded-2xl border border-slate-200 p-5 animate-pulse">
           <div class="flex items-start gap-4">
@@ -22,7 +23,6 @@
             <div class="flex-1 space-y-2">
               <div class="w-48 h-4 bg-slate-100 rounded"></div>
               <div class="w-full h-3 bg-slate-50 rounded"></div>
-              <div class="w-24 h-3 bg-slate-50 rounded"></div>
             </div>
           </div>
         </div>
@@ -33,7 +33,8 @@
         :class="['bg-white rounded-2xl border-2 p-5 cursor-pointer transition-all',
           form.chuong_trinh_id === p.id ? 'border-primary bg-primary/5' : 'border-slate-200 hover:border-primary/30']">
         <div class="flex items-start gap-4">
-          <div :class="['w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0', form.chuong_trinh_id === p.id ? 'bg-primary text-white' : 'bg-slate-100 text-slate-400']">
+          <div :class="['w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0',
+            form.chuong_trinh_id === p.id ? 'bg-primary text-white' : 'bg-slate-100 text-slate-400']">
             <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">volunteer_activism</span>
           </div>
           <div class="flex-1">
@@ -41,6 +42,7 @@
             <p class="text-sm text-slate-500 mt-1">{{ p.mo_ta }}</p>
             <p class="text-xs text-emerald-600 font-bold mt-2">Hạn nộp: {{ p.han_nop }}</p>
           </div>
+          <span v-if="form.chuong_trinh_id === p.id" class="material-symbols-outlined text-primary mt-1" style="font-variation-settings:'FILL' 1;">check_circle</span>
         </div>
       </div>
 
@@ -48,11 +50,36 @@
         <span class="material-symbols-outlined text-sm">error</span>{{ formErrors.chuong_trinh_id }}
       </p>
 
-      <h2 class="font-black text-slate-800 mt-6 pt-4 border-t border-slate-100">Chọn nhóm đối tượng thụ hưởng</h2>
-      <select v-model="form.doi_tuong_id" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer">
-        <option :value="null">-- Chọn nhóm đối tượng --</option>
-        <option v-for="g in beneficiaryGroups" :key="g.id" :value="g.id">{{ g.tenDoiTuong || g.ten_doi_tuong || g.name }}</option>
-      </select>
+      <!-- Bước 2: Xác nhận nhóm đối tượng (hiện sau khi chọn chương trình) -->
+      <template v-if="form.chuong_trinh_id">
+        <h2 class="font-black text-slate-800 mt-6 pt-4 border-t border-slate-100">Bước 2: Xác nhận nhóm đối tượng của bạn</h2>
+
+        <div v-if="!selectedProgram?.danh_sach_doi_tuong?.length" class="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          Chương trình này chưa được cấu hình đối tượng thụ hưởng. Vui lòng liên hệ quản trị viên.
+        </div>
+
+        <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div v-for="g in beneficiaryGroups" :key="g.id"
+            :class="['rounded-2xl border-2 p-4 transition-all flex items-center gap-3',
+              isGroupAllowed(g)
+                ? (form.doi_tuong_id === g.id
+                    ? 'border-primary bg-primary/5 cursor-pointer'
+                    : 'border-slate-200 hover:border-primary/30 cursor-pointer')
+                : 'border-slate-100 bg-slate-50 opacity-40 cursor-not-allowed']"
+            @click="isGroupAllowed(g) && (form.doi_tuong_id = g.id)">
+            <div :class="['w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0',
+              form.doi_tuong_id === g.id ? 'bg-primary text-white' : 'bg-slate-100 text-slate-400']">
+              <span class="material-symbols-outlined text-sm" style="font-variation-settings:'FILL' 1;">group</span>
+            </div>
+            <p class="text-sm font-bold text-slate-700 leading-tight flex-1">{{ g.tenDoiTuong }}</p>
+            <span v-if="form.doi_tuong_id === g.id" class="material-symbols-outlined text-primary text-sm" style="font-variation-settings:'FILL' 1;">check_circle</span>
+          </div>
+        </div>
+
+        <p v-if="formErrors.doi_tuong_id" class="text-xs text-red-500 font-semibold flex items-center gap-1">
+          <span class="material-symbols-outlined text-sm">error</span>{{ formErrors.doi_tuong_id }}
+        </p>
+      </template>
     </div>
 
     <!-- STEP 1: THONG TIN CA NHAN -->
@@ -197,7 +224,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useUI } from '../../stores/ui'
 import { authStore } from '../../stores/auth'
@@ -282,6 +309,7 @@ async function loadPrograms() {
       ten: p.tenChuongTrinh || p.ten_chuong_trinh || p.ten,
       han_nop: (p.ngayKetThuc || p.ngay_ket_thuc) ? new Date(p.ngayKetThuc || p.ngay_ket_thuc).toLocaleDateString('vi-VN') : '—',
       mo_ta: p.moTa || p.mo_ta || '',
+      danh_sach_doi_tuong: p.danhSachDoiTuong || [],
     }))
   } catch (err) {
     console.error(err)
@@ -293,6 +321,35 @@ async function loadPrograms() {
 
 
 const selectedProgram = computed(() => programs.value.find(p => p.id === form.value.chuong_trinh_id))
+
+const filteredPrograms = computed(() => {
+  if (!form.value.doi_tuong_id) return programs.value
+  const selectedGroup = beneficiaryGroups.value.find(g => g.id === form.value.doi_tuong_id)
+  if (!selectedGroup?.category) return programs.value
+  return programs.value.filter(p =>
+    !p.danh_sach_doi_tuong?.length || p.danh_sach_doi_tuong.includes(selectedGroup.category)
+  )
+})
+
+const filteredBeneficiaryGroups = computed(() => {
+  const prog = selectedProgram.value
+  if (!prog) return []
+  if (!prog.danh_sach_doi_tuong?.length) return [] // chưa cấu hình → không cho chọn
+  return beneficiaryGroups.value.filter(g => {
+    const cat = g.category || g.loai || ''
+    return prog.danh_sach_doi_tuong.includes(cat)
+  })
+})
+
+function isGroupAllowed(g) {
+  const prog = selectedProgram.value
+  if (!prog?.danh_sach_doi_tuong?.length) return true
+  return prog.danh_sach_doi_tuong.includes(g.id)
+}
+
+watch(() => form.value.chuong_trinh_id, () => {
+  form.value.doi_tuong_id = null
+})
 
 // File handlers
 function onFileChange(e) {
@@ -326,8 +383,12 @@ function formatFileSize(bytes) {
 // Step validation
 function validateStep() {
   if (currentStep.value === 0) {
-    if (!form.value.chuong_trinh_id || !form.value.doi_tuong_id) {
-      formErrors.value = { chuong_trinh_id: 'Vui lòng chọn cả chương trình và nhóm đối tượng' }
+    if (!form.value.doi_tuong_id) {
+      formErrors.value = { doi_tuong_id: 'Vui lòng chọn nhóm đối tượng' }
+      return false
+    }
+    if (!form.value.chuong_trinh_id) {
+      formErrors.value = { chuong_trinh_id: 'Vui lòng chọn chương trình trợ cấp' }
       return false
     }
     return true

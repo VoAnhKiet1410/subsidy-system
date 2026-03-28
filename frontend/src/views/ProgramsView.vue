@@ -175,6 +175,46 @@
                 </div>
               </div>
               <div>
+                <div class="flex items-center justify-between mb-1.5">
+                  <label class="block text-sm font-semibold text-slate-600">Đối tượng thụ hưởng <span class="text-red-500">*</span></label>
+                  <button type="button" @click="showAddGroup = !showAddGroup"
+                    class="text-xs text-primary font-bold flex items-center gap-1 hover:opacity-80">
+                    <span class="material-symbols-outlined text-sm">add_circle</span>Thêm nhóm mới
+                  </button>
+                </div>
+                <!-- Thêm nhóm mới inline -->
+                <div v-if="showAddGroup" class="flex gap-2 mb-2">
+                  <input v-model="newGroupName" placeholder="Tên nhóm đối tượng mới..."
+                    class="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                  <button type="button" @click="addNewGroup" :disabled="!newGroupName.trim()"
+                    class="px-4 py-2 bg-primary text-white text-sm font-bold rounded-xl hover:opacity-90 disabled:opacity-40">Lưu</button>
+                  <button type="button" @click="showAddGroup = false; newGroupName = ''"
+                    class="px-3 py-2 text-slate-400 hover:text-slate-600 rounded-xl">
+                    <span class="material-symbols-outlined text-sm">close</span>
+                  </button>
+                </div>
+                <!-- Danh sách nhóm -->
+                <div class="grid grid-cols-1 gap-1.5 max-h-48 overflow-y-auto pr-1">
+                  <div v-for="g in allGroups" :key="g.id"
+                    class="flex items-center justify-between px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl hover:border-primary/40"
+                    :class="form.danh_sach_doi_tuong.includes(g.id) ? 'border-primary bg-primary/5' : ''">
+                    <label class="flex items-center gap-2 cursor-pointer flex-1 text-sm">
+                      <input type="checkbox" :value="g.id" v-model="form.danh_sach_doi_tuong" class="accent-primary" />
+                      {{ g.tenDoiTuong }}
+                    </label>
+                    <div class="flex items-center gap-1 ml-2">
+                      <button type="button" @click="editGroup(g)" class="text-slate-400 hover:text-primary">
+                        <span class="material-symbols-outlined text-sm">edit</span>
+                      </button>
+                      <button type="button" @click="deleteGroup(g)" class="text-slate-400 hover:text-red-500">
+                        <span class="material-symbols-outlined text-sm">delete</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <p v-if="errors.doiTuong" class="text-xs text-red-500 mt-1">{{ errors.doiTuong }}</p>
+              </div>
+              <div>
                 <label class="block text-sm font-semibold text-slate-600 mb-1.5">Trạng thái</label>
                 <select v-model="form.trang_thai" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20">
                   <option value="ACTIVE">Đang hoạt động</option>
@@ -275,6 +315,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useUI } from '../stores/ui'
 import { programsApi } from '../api/programs'
+import http from '../api/http'
 
 const ui = useUI()
 
@@ -287,8 +328,22 @@ const detailProgram = ref(null)
 const saving        = ref(false)
 const errors        = ref({})
 
-const defaultForm = { ten_chuong_trinh:'', nguon_quy_id:'', mo_ta:'', ngay_bat_dau:'', ngay_ket_thuc:'', trang_thai:'ACTIVE' }
+const doiTuongCategories = [
+  { value: 'THU_NHAP_THAP', label: 'Thu nhập thấp' },
+  { value: 'KHUYET_TAT',    label: 'Khuyết tật' },
+  { value: 'NGUOI_GIA',     label: 'Người già' },
+  { value: 'TRE_EM',        label: 'Trẻ em' },
+  { value: 'DON_THAN',      label: 'Đơn thân' },
+  { value: 'HIV',           label: 'HIV/AIDS' },
+  { value: 'THIEN_TAI',     label: 'Thiên tai' },
+]
+
+const defaultForm = { ten_chuong_trinh:'', nguon_quy_id:'', mo_ta:'', ngay_bat_dau:'', ngay_ket_thuc:'', trang_thai:'ACTIVE', danh_sach_doi_tuong:[] }
 const form = ref({ ...defaultForm })
+
+const allGroups = ref([])
+const showAddGroup = ref(false)
+const newGroupName = ref('')
 
 const funds = ref([])
 const programs = ref([])
@@ -299,10 +354,13 @@ onMounted(async () => {
 
 async function fetchData() {
   try {
-    const [fundRes, progRes] = await Promise.all([
+    const [fundRes, progRes, groupRes] = await Promise.all([
       programsApi.getFunds(),
-      programsApi.getAll()
+      programsApi.getAll(),
+      http.get('/beneficiary-groups', { params: { size: 1000 } })
     ])
+
+    allGroups.value = (groupRes.data?.content || groupRes.data || [])
     
     // Map Funds
     const fd = fundRes.data?.content || fundRes.data || []
@@ -325,6 +383,7 @@ async function fetchData() {
       ngay_bat_dau: p.ngayBatDau ? p.ngayBatDau.split('T')[0] : '',
       ngay_ket_thuc: p.ngayKetThuc ? p.ngayKetThuc.split('T')[0] : '',
       trang_thai: p.trangThai || 'ACTIVE',
+      danh_sach_doi_tuong: p.danhSachDoiTuong || [],
       so_ho_so: p.soHoSo || 0,
       ho_so_duyet: p.hoSoDuyet || 0,
       ho_so_cho: p.hoSoCho || 0
@@ -407,6 +466,45 @@ function openCreate() { editProgram.value = null; form.value = { ...defaultForm 
 function openEdit(p)  { editProgram.value = p;   form.value = { ...p };           errors.value = {}; showModal.value = true }
 function openDetail(p){ detailProgram.value = p }
 
+async function addNewGroup() {
+  if (!newGroupName.value.trim()) return
+  try {
+    const res = await http.post('/beneficiary-groups', { tenDoiTuong: newGroupName.value.trim() })
+    const g = res.data
+    allGroups.value.push(g)
+    form.value.danh_sach_doi_tuong.push(g.id)
+    newGroupName.value = ''
+    showAddGroup.value = false
+    ui.showSuccess('Đã thêm nhóm đối tượng mới!')
+  } catch (e) {
+    ui.showError?.('Không thể thêm nhóm: ' + (e.response?.data?.message || e.message))
+  }
+}
+
+async function editGroup(g) {
+  const newName = prompt('Đổi tên nhóm đối tượng:', g.tenDoiTuong)
+  if (!newName || newName.trim() === g.tenDoiTuong) return
+  try {
+    await http.put(`/beneficiary-groups/${g.id}`, { tenDoiTuong: newName.trim() })
+    g.tenDoiTuong = newName.trim()
+    ui.showSuccess('Đã cập nhật tên nhóm!')
+  } catch (e) {
+    ui.showError?.('Không thể cập nhật: ' + (e.response?.data?.message || e.message))
+  }
+}
+
+async function deleteGroup(g) {
+  if (!confirm(`Xóa nhóm "${g.tenDoiTuong}"?`)) return
+  try {
+    await http.delete(`/beneficiary-groups/${g.id}`)
+    allGroups.value = allGroups.value.filter(x => x.id !== g.id)
+    form.value.danh_sach_doi_tuong = form.value.danh_sach_doi_tuong.filter(id => id !== g.id)
+    ui.showSuccess('Đã xóa nhóm đối tượng!')
+  } catch (e) {
+    ui.showError?.('Không thể xóa: ' + (e.response?.data?.message || e.message))
+  }
+}
+
 async function toggleStatus(p) {
   const newStatus = p.trang_thai === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
   try {
@@ -441,7 +539,8 @@ async function saveProgram() {
     moTa: form.value.mo_ta,
     ngayBatDau: form.value.ngay_bat_dau,
     ngayKetThuc: form.value.ngay_ket_thuc,
-    trangThai: form.value.trang_thai
+    trangThai: form.value.trang_thai,
+    danhSachDoiTuong: form.value.danh_sach_doi_tuong || []
   }
 
   try {
