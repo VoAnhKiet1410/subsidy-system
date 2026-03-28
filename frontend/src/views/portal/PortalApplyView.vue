@@ -302,15 +302,23 @@ const programs = ref([])
 async function loadPrograms() {
   loadingPrograms.value = true
   try {
-    const res = await http.get('/programs', { params: { trangThai: 'ACTIVE', size: 100 } })
+    const res = await http.get('/programs', { params: { size: 1000 } })
     const list = res.data?.content || res.data || []
-    programs.value = list.map(p => ({
-      id: p.id,
-      ten: p.tenChuongTrinh || p.ten_chuong_trinh || p.ten,
-      han_nop: (p.ngayKetThuc || p.ngay_ket_thuc) ? new Date(p.ngayKetThuc || p.ngay_ket_thuc).toLocaleDateString('vi-VN') : '—',
-      mo_ta: p.moTa || p.mo_ta || '',
-      danh_sach_doi_tuong: p.danhSachDoiTuong || [],
-    }))
+    const today = new Date(); today.setHours(0,0,0,0)
+    programs.value = list
+      .filter(p => {
+        // Chỉ hiện chương trình OPEN và chưa hết hạn
+        const deadline = p.ngayKetThuc ? new Date(p.ngayKetThuc) : null
+        const isOpen = p.trangThai === 'OPEN' || p.trangThai === 'ACTIVE'
+        return isOpen && (!deadline || deadline >= today)
+      })
+      .map(p => ({
+        id: p.id,
+        ten: p.tenChuongTrinh || p.ten_chuong_trinh || p.ten,
+        han_nop: p.ngayKetThuc ? new Date(p.ngayKetThuc).toLocaleDateString('vi-VN') : '—',
+        mo_ta: p.moTa || p.mo_ta || '',
+        danh_sach_doi_tuong: p.danhSachDoiTuong || [],
+      }))
   } catch (err) {
     console.error(err)
     ui.showError('Không thể tải danh sách chương trình. Vui lòng thử lại.')

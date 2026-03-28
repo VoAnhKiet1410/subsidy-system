@@ -244,6 +244,7 @@ onMounted(async () => {
       iconColor: 'text-primary',
       status: p.trangThai === 'OPEN' || p.trangThai === 'ACTIVE' ? 'OPEN' : p.trangThai === 'UPCOMING' || p.trangThai === 'SOON' ? 'SOON' : 'CLOSED',
       han_nop: p.ngayKetThuc ? new Date(p.ngayKetThuc).toLocaleDateString('vi-VN') : '—',
+      ngay_ket_thuc_raw: p.ngayKetThuc || null,
       muc_ho_tro: p.mucHoTro || (p.nganSach ? (p.nganSach.toLocaleString() + 'đ') : 'Theo quy định'),
       con_lai: p.ngayKetThuc ? Math.max(0, Math.ceil((new Date(p.ngayKetThuc) - Date.now()) / 86400000)) : 0,
       so_ho_so: p.soHoSo || 0,
@@ -266,8 +267,20 @@ const categories = computed(() => [
 ])
 
 const filteredPrograms = computed(() => {
+  const today = new Date(); today.setHours(0,0,0,0)
   let list = programs.value
-  if (activeCategory.value !== 'all') list = list.filter(p => p.status === activeCategory.value)
+
+  if (activeCategory.value === 'all') {
+    // Tab "Tất cả": ẩn chương trình đã kết thúc hoặc quá hạn
+    list = list.filter(p => {
+      if (p.status === 'CLOSED') return false
+      const deadline = p.ngay_ket_thuc_raw ? new Date(p.ngay_ket_thuc_raw) : null
+      return !deadline || deadline >= today
+    })
+  } else {
+    list = list.filter(p => p.status === activeCategory.value)
+  }
+
   if (search.value.trim()) {
     const q = search.value.toLowerCase()
     list = list.filter(p => p.ten.toLowerCase().includes(q) || p.danh_muc.toLowerCase().includes(q) || p.mo_ta.toLowerCase().includes(q))

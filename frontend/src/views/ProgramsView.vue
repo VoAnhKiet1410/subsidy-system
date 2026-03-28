@@ -94,6 +94,9 @@
                 <span :class="['px-2.5 py-1 rounded-full text-[10px] font-black', statusStyle(p.trang_thai).badge]">
                   {{ statusStyle(p.trang_thai).label }}
                 </span>
+                <span v-if="isExpired(p)" class="ml-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-red-100 text-red-600">
+                  Hết hạn
+                </span>
               </td>
               <td class="px-4 py-4 text-center">
                 <span class="text-sm font-bold text-slate-700">{{ p.so_ho_so || 0 }}</span>
@@ -413,10 +416,19 @@ const filteredPrograms = computed(() => {
   return list
 })
 
+function isExpired(p) {
+  if (!p.ngay_ket_thuc) return false
+  const deadline = new Date(p.ngay_ket_thuc); deadline.setHours(23,59,59)
+  return deadline < new Date()
+}
+
 function statusStyle(s) {
   return {
     ACTIVE:   { badge:'bg-emerald-100 text-emerald-700', label:'Đang hoạt động', icon:'check_circle', iconBg:'bg-emerald-100', iconColor:'text-emerald-600', gradient:'bg-gradient-to-r from-emerald-400 to-teal-400' },
+    OPEN:     { badge:'bg-emerald-100 text-emerald-700', label:'Đang mở',        icon:'check_circle', iconBg:'bg-emerald-100', iconColor:'text-emerald-600', gradient:'bg-gradient-to-r from-emerald-400 to-teal-400' },
+    UPCOMING: { badge:'bg-blue-100 text-blue-700',       label:'Sắp mở',         icon:'schedule',     iconBg:'bg-blue-100',    iconColor:'text-blue-600',    gradient:'bg-gradient-to-r from-blue-400 to-indigo-400' },
     INACTIVE: { badge:'bg-amber-100 text-amber-700',     label:'Tạm dừng',       icon:'pause_circle', iconBg:'bg-amber-100',   iconColor:'text-amber-600',   gradient:'bg-gradient-to-r from-amber-400 to-orange-400' },
+    CLOSED:   { badge:'bg-slate-100 text-slate-500',     label:'Đã kết thúc',    icon:'cancel',       iconBg:'bg-slate-100',   iconColor:'text-slate-500',   gradient:'bg-gradient-to-r from-slate-300 to-slate-400' },
     ENDED:    { badge:'bg-slate-100 text-slate-500',     label:'Đã kết thúc',    icon:'cancel',       iconBg:'bg-slate-100',   iconColor:'text-slate-500',   gradient:'bg-gradient-to-r from-slate-300 to-slate-400' },
   }[s] || { badge:'bg-slate-100 text-slate-400', label:'N/A', icon:'help', iconBg:'bg-slate-100', iconColor:'text-slate-400', gradient:'bg-slate-200' }
 }
