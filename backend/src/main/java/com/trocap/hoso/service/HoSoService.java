@@ -19,6 +19,24 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.Map;
+import java.util.HashMap;
+
+import com.trocap.chuongtrinh.model.ChuongTrinhTruCap;
+import com.trocap.tailieu.repository.TaiLieuRepository;
+import com.trocap.tailieu.model.TaiLieuDinhKem;
+import com.trocap.danhgiaai.model.DanhGiaAi;
+import com.trocap.danhgiaai.repository.DanhGiaAiRepository;
+import com.trocap.danhgiaai.service.AiAnalysisService;
+import com.trocap.danhgiaai.dto.AiAnalysisResult;
+import com.trocap.tailieu.service.FileStorageService;
+import org.springframework.scheduling.annotation.Async;
 
 @Service
 @RequiredArgsConstructor
@@ -30,6 +48,10 @@ public class HoSoService {
     private final ChuongTrinhRepository chuongTrinhRepository;
     private final ThongBaoService thongBaoService;
     private final CounterService counterService;
+    private final TaiLieuRepository taiLieuRepository;
+    private final AiAnalysisService aiAnalysisService;
+    private final DanhGiaAiRepository danhGiaAiRepository;
+    private final FileStorageService fileStorageService;
 
     // ─── Danh sách (ADMIN/OFFICER xem tất cả) ──────────────────────
     public Page<HoSoHoTro> findAll(Pageable pageable) {
@@ -167,10 +189,85 @@ public class HoSoService {
             throw new BadRequestException("Thiếu thông tin chương trình trợ cấp");
         }
 
+        ChuongTrinhTruCap chuongTrinh = chuongTrinhRepository.findById(hoSo.getChuongTrinhId())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chương trình trợ cấp"));
+
+        // Validate Giấy tờ bắt buộc theo cấu hình của Chương Trình (BƯỚC 3)
+        List<TaiLieuDinhKem> dsTaiLieuDaNop = taiLieuRepository.findByHoSoHoTroId(id);
+        
+        Set<String> cacLoaiGiayToDaNop = dsTaiLieuDaNop.stream()
+                .map(TaiLieuDinhKem::getLoaiGiayTo)
+                .filter(loai -> loai != null)
+                .collect(Collectors.toSet());
+
+        List<String> giayToBatBuoc = chuongTrinh.getRequiredDocuments();
+        if (giayToBatBuoc != null && !giayToBatBuoc.isEmpty()) {
+            List<String> giayToThieu = new ArrayList<>();
+            for (String doc : giayToBatBuoc) {
+                if (!cacLoaiGiayToDaNop.contains(doc)) {
+                    giayToThieu.add(doc);
+                }
+            }
+            if (!giayToThieu.isEmpty()) {
+                throw new BadRequestException("Hồ sơ chưa hợp lệ. Bạn cần nộp thêm loại giấy tờ: " + String.join(", ", giayToThieu));
+            }
+        }
+
         hoSo.setTrangThai("SUBMITTED");
         hoSo.setNgayNopHoSo(LocalDate.now());
 
-        return hoSoRepository.save(hoSo);
+        HoSoHoTro savedHoSo = hoSoRepository.save(hoSo);
+
+        // Chạy bất đồng bộ Đánh giá AI (BƯỚC 4 & BƯỚC 5)
+        tienHanhDanhGiaAi(savedHoSo, dsTaiLieuDaNop);
+
+        return savedHoSo;
+    }
+
+    /**
+     * Chạy ngầm phân tích AI sau khi hồ sơ duyệt
+     */
+    @Async
+    public void tienHanhDanhGiaAi(HoSoHoTro hoSo, List<TaiLieuDinhKem> dsTaiLieu) {
+        try {
+            // Tìm Form Mẫu đã điền. Bạn có thể thay string theo quy ước FE.
+            TaiLieuDinhKem formMaus = dsTaiLieu.stream()
+                    .filter(doc -> "Form Đăng Ký".equalsIgnoreCase(doc.getLoaiGiayTo()) || doc.getLoaiGiayTo() != null && doc.getLoaiGiayTo().contains("Form"))
+                    .findFirst().orElse(null);
+
+            if (formMaus != null && formMaus.getDuongDanFile() != null) {
+                Path filePath = fileStorageService.getFilePath(formMaus.getDuongDanFile());
+                byte[] fileBytes = Files.readAllBytes(filePath);
+
+                // Gọi mô hình Python AI thông qua REST (AiAnalysisService)
+                AiAnalysisResult result = aiAnalysisService.analyzeDocumentBytes(fileBytes, formMaus.getTenTaiLieu());
+
+                if (result != null) {
+                    // Logic đối chiếu 
+                    int diemTinCay = (int) Math.round(result.getOcrConfidence() * 100);
+                    String ruiRo = result.getIsTampered() ? "HIGH" : (diemTinCay < 50 ? "MEDIUM" : "LOW");
+
+                    Map<String, Object> chiTiet = new HashMap<>();
+                    chiTiet.put("ocr_text", result.getOcrText());
+                    chiTiet.put("tampering_score", result.getTamperingScore());
+                    chiTiet.put("is_tampered", result.getIsTampered());
+
+                    DanhGiaAi danhGiaAi = DanhGiaAi.builder()
+                            .hoSoId(hoSo.getId())
+                            .diemTinCay(diemTinCay)
+                            .mucDoRuiRo(ruiRo)
+                            .chiTietPhanTich(chiTiet)
+                            .danhGiaBoi("AI_MODEL_EASYOCR_ELA")
+                            .trangThai("COMPLETED")
+                            .build();
+
+                    danhGiaAiRepository.save(danhGiaAi);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Lỗi quá trình AI phân tích hồ sơ: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════

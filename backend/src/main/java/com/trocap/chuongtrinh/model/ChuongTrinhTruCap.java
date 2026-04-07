@@ -35,6 +35,9 @@ public class ChuongTrinhTruCap {
     private LocalDate ngayBatDau;
     private LocalDate ngayKetThuc;
 
+    private String templateFormUrl;               // Đường dẫn tải file Form mẫu
+    private java.util.List<String> requiredDocuments;       // Danh sách giấy tờ bắt buộc (VD: ["CCCD", "Đơn xin hỗ trợ", "Hộ nghèo"])
+
     @Indexed
     private String trangThai;            // UPCOMING, OPEN, CLOSED
 

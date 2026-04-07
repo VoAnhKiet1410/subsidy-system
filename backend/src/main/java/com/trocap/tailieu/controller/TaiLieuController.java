@@ -50,6 +50,16 @@ public class TaiLieuController {
         }
     }
 
+    // ─── POST upload tệp chung (ví dụ Form Mẫu cho Chương Trình) ─────
+    @PostMapping(value = "/api/files/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('ADMIN', 'OFFICER')")
+    @Operation(summary = "Upload file chung, trả về URL tải về")
+    public ResponseEntity<ApiResponse<String>> uploadGenericFile(@RequestParam("file") MultipartFile file) {
+        String filename = fileStorageService.store(file);
+        // Trả về API endpoint để tải xuống file này
+        return ResponseEntity.ok(ApiResponse.success("Upload thành công", "/api/files/" + filename));
+    }
+
     // ─── POST upload tài liệu cho hồ sơ ────────────────────────────
     @PostMapping(value = "/api/applications/{applicationId}/attachments",
                  consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -58,9 +68,10 @@ public class TaiLieuController {
     public ResponseEntity<ApiResponse<TaiLieuDinhKem>> upload(
             @PathVariable String applicationId,
             @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "loaiGiayTo", required = false) String loaiGiayTo,
             Principal principal) {
         return ResponseEntity.ok(ApiResponse.success("Upload tài liệu thành công",
-                taiLieuService.upload(applicationId, file, principal.getName())));
+                taiLieuService.upload(applicationId, file, loaiGiayTo, principal.getName())));
     }
 
     // ─── GET danh sách tài liệu theo hồ sơ ─────────────────────────

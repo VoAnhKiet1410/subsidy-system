@@ -27,8 +27,13 @@ public class TaiLieuService {
     private final FileStorageService fileStorageService;
     private final OcrService ocrService;
 
-    // ─── Upload tài liệu ────────────────────────────────────────────
+    // ─── Tương thích Test cũ ────────────────────────────────────────
     public TaiLieuDinhKem upload(String applicationId, MultipartFile file, String username) {
+        return upload(applicationId, file, null, username);
+    }
+
+    // ─── Upload tài liệu ────────────────────────────────────────────
+    public TaiLieuDinhKem upload(String applicationId, MultipartFile file, String loaiGiayTo, String username) {
         // Validate hồ sơ tồn tại
         HoSoHoTro hoSo = hoSoRepository.findById(applicationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy hồ sơ: " + applicationId));
@@ -46,6 +51,7 @@ public class TaiLieuService {
                 .duongDanFile(storedFilename)
                 .loaiFile(file.getContentType())
                 .kichThuoc(file.getSize())
+                .loaiGiayTo(loaiGiayTo)
                 .uploadedBy(username)
                 .build();
 

@@ -30,6 +30,9 @@ public class TaiLieuDinhKem {
     private String duongDanFile;         // Đường dẫn lưu trữ trên disk
     private String loaiFile;             // MIME type: application/pdf, image/png...
     private Long kichThuoc;              // Kích thước (bytes)
+    
+    // Thuộc tính mới để match với danh sách requiredDocuments của chương trình
+    private String loaiGiayTo;           // Ví dụ: "CCCD", "Form Mẫu Đã Điền", "Sổ Hộ Nghèo"
 
     private String ketQuaOcr;            // Kết quả OCR (nếu có)
 

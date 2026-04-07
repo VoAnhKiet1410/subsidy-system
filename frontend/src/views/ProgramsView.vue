@@ -181,6 +181,32 @@
                   <option value="INACTIVE">Tạm dừng</option>
                 </select>
               </div>
+              <div>
+                <label class="block text-sm font-semibold text-slate-600 mb-1.5">Giấy tờ bắt buộc (Cách nhau bằng dấu phẩy)</label>
+                <input v-model="form.required_documents" type="text" placeholder="VD: CCCD, Sổ hộ khẩu, Form Đăng Ký"
+                  class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20" />
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-slate-600 mb-1.5">File Form Mẫu (Tuỳ chọn)</label>
+                <div class="flex items-center gap-3">
+                  <button type="button" @click="$refs.templateFileInput.click()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl transition-colors border border-slate-200 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-sm">upload_file</span> Tải file lên
+                  </button>
+                  <input type="file" ref="templateFileInput" class="hidden" accept=".pdf,.doc,.docx,.jpg,.png" @change="onTemplateFileChange" />
+                  
+                  <div v-if="uploadingTemplate" class="flex items-center gap-2 text-primary text-sm font-semibold">
+                    <span class="material-symbols-outlined text-sm animate-spin">progress_activity</span> Đang xử lý...
+                  </div>
+                  <div v-else-if="form.template_form_url" class="flex items-center gap-2 text-emerald-600 text-sm font-semibold flex-1 min-w-0 bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-100">
+                    <span class="material-symbols-outlined text-sm">check_circle</span>
+                    <a :href="form.template_form_url" target="_blank" class="hover:underline truncate text-emerald-700" title="Xem file tải lên">Đã đính kèm Form Mẫu</a>
+                    <button type="button" @click="form.template_form_url = ''" class="ml-auto text-slate-400 hover:text-red-500 rounded-lg p-1" title="Xoá file">
+                      <span class="material-symbols-outlined text-sm">close</span>
+                    </button>
+                  </div>
+                  <div v-else class="text-xs text-slate-400 italic">Chưa có file form mẫu</div>
+                </div>
+              </div>
             </div>
             <div class="flex justify-end gap-3 mt-7">
               <button @click="showModal=false" class="px-5 py-2.5 text-sm font-semibold text-slate-500 hover:bg-slate-100 rounded-xl flex items-center gap-1.5">
@@ -257,8 +283,18 @@
               </div>
               <p class="text-xs text-slate-400 mt-1">{{ getFundUsedPct(detailProgram.nguon_quy_id) }}% ngân sách quỹ đã sử dụng</p>
             </div>
-            <!-- Description -->
-            <p class="text-sm text-slate-500 leading-relaxed">{{ detailProgram.mo_ta || 'Không có mô tả.' }}</p>
+            <!-- Description & Template Form -->
+            <p class="text-sm text-slate-500 leading-relaxed mb-4">{{ detailProgram.mo_ta || 'Không có mô tả.' }}</p>
+            <div v-if="detailProgram.required_documents" class="mb-4">
+              <span class="text-xs font-bold text-slate-600">Giấy tờ bắt buộc: </span>
+              <span class="text-sm font-semibold text-emerald-600">{{ detailProgram.required_documents }}</span>
+            </div>
+            <div v-if="detailProgram.template_form_url">
+              <a :href="detailProgram.template_form_url" target="_blank"
+                 class="inline-flex items-center gap-1.5 text-sm font-bold text-blue-600 hover:text-blue-800 transition-colors">
+                 <span class="material-symbols-outlined text-sm">download</span> Tải Form Mẫu
+              </a>
+            </div>
             <div class="flex justify-end gap-3 mt-6">
               <button @click="openEdit(detailProgram);detailProgram=null"
                 class="px-5 py-2.5 bg-primary text-white text-sm font-bold rounded-xl hover:opacity-90">Chỉnh sửa</button>
@@ -285,9 +321,11 @@ const showModal     = ref(false)
 const editProgram   = ref(null)
 const detailProgram = ref(null)
 const saving        = ref(false)
+const uploadingTemplate = ref(false)
+const templateFileInput = ref(null)
 const errors        = ref({})
 
-const defaultForm = { ten_chuong_trinh:'', nguon_quy_id:'', mo_ta:'', ngay_bat_dau:'', ngay_ket_thuc:'', trang_thai:'ACTIVE' }
+const defaultForm = { ten_chuong_trinh:'', nguon_quy_id:'', mo_ta:'', ngay_bat_dau:'', ngay_ket_thuc:'', trang_thai:'ACTIVE', required_documents:'CCCD, Sổ hộ khẩu, Form Đăng Ký', template_form_url:'' }
 const form = ref({ ...defaultForm })
 
 const funds = ref([])
@@ -325,6 +363,8 @@ async function fetchData() {
       ngay_bat_dau: p.ngayBatDau ? p.ngayBatDau.split('T')[0] : '',
       ngay_ket_thuc: p.ngayKetThuc ? p.ngayKetThuc.split('T')[0] : '',
       trang_thai: p.trangThai || 'ACTIVE',
+      required_documents: Array.isArray(p.requiredDocuments) ? p.requiredDocuments.join(', ') : '',
+      template_form_url: p.templateFormUrl || '',
       so_ho_so: p.soHoSo || 0,
       ho_so_duyet: p.hoSoDuyet || 0,
       ho_so_cho: p.hoSoCho || 0
@@ -416,7 +456,9 @@ async function toggleStatus(p) {
       moTa: p.mo_ta,
       ngayBatDau: p.ngay_bat_dau,
       ngayKetThuc: p.ngay_ket_thuc,
-      trangThai: newStatus
+      trangThai: newStatus,
+      requiredDocuments: p.required_documents ? p.required_documents.split(',').map(s=>s.trim()).filter(Boolean) : [],
+      templateFormUrl: p.template_form_url || null
     }
     await programsApi.update(p.id, payload)
     p.trang_thai = newStatus
@@ -441,7 +483,9 @@ async function saveProgram() {
     moTa: form.value.mo_ta,
     ngayBatDau: form.value.ngay_bat_dau,
     ngayKetThuc: form.value.ngay_ket_thuc,
-    trangThai: form.value.trang_thai
+    trangThai: form.value.trang_thai,
+    requiredDocuments: form.value.required_documents ? form.value.required_documents.split(',').map(s=>s.trim()).filter(Boolean) : [],
+    templateFormUrl: form.value.template_form_url || null
   }
 
   try {
@@ -459,6 +503,25 @@ async function saveProgram() {
     ui.showWarning?.('Lỗi lưu chương trình: ' + msg) || alert('Lỗi: ' + msg)
   } finally {
     saving.value = false
+  }
+}
+
+async function onTemplateFileChange(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  uploadingTemplate.value = true
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+    const res = await programsApi.uploadFormTemplate(formData)
+    // res.data corresponds to ApiResponse { data: "/api/files/..." }
+    form.value.template_form_url = res.data?.data || res.data
+    ui.showSuccess('Đã tải lên Form mẫu thành công!')
+  } catch (err) {
+    ui.showWarning?.('Lỗi tải form mẫu: ' + (err.response?.data?.message || err.message))
+  } finally {
+    uploadingTemplate.value = false
+    if (templateFileInput.value) templateFileInput.value.value = ''
   }
 }
 </script>

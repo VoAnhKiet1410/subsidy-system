@@ -8,6 +8,9 @@ export const programsApi = {
   create: (data) => http.post('/programs', data),
   update: (id, data) => http.put(`/programs/${id}`, data),
   delete: (id) => http.delete(`/programs/${id}`),
+  uploadFormTemplate: (formData) => http.post('/files/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
 
   // nguon_quy
   getFunds: () => http.get('/funding-sources'),

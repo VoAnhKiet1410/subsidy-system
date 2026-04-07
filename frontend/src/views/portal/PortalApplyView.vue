@@ -96,14 +96,30 @@
     <!-- STEP 2: TAI LIEU -->
     <div v-if="currentStep === 2" class="space-y-4">
       <h2 class="font-black text-slate-800">Tài liệu đính kèm</h2>
+      <div v-if="selectedProgram?.template_form_url" class="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-sm text-blue-800 flex justify-between items-center flex-wrap gap-3">
+        <div>
+          <p class="font-bold">Form Mẫu Đăng Ký</p>
+          <p class="text-xs mt-1">Vui lòng tải form mẫu về, điền đầy đủ và scan/chụp ảnh tải lên lại.</p>
+        </div>
+        <a :href="selectedProgram.template_form_url" target="_blank" class="px-4 py-2 bg-blue-600 text-white rounded-xl font-bold flex items-center gap-1 hover:bg-blue-700">
+          <span class="material-symbols-outlined text-sm">download</span> Tải xuống
+        </a>
+      </div>
+
       <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm text-amber-800">
-        <p class="font-bold mb-2">Cần tải lên:</p>
-        <ul class="space-y-1 list-disc list-inside">
+        <p class="font-bold mb-2">Cần tải lên (Bắt buộc):</p>
+        <ul v-if="selectedProgram?.requiredDocuments?.length" class="space-y-1 list-disc list-inside">
+          <li v-for="doc in selectedProgram.requiredDocuments" :key="doc">
+            {{ doc }} <span class="text-red-500 font-bold">*</span>
+          </li>
+        </ul>
+        <ul v-else class="space-y-1 list-disc list-inside">
           <li>CCCD / Giấy chứng minh <span class="text-red-500 font-bold">*</span></li>
           <li>Sổ hộ khẩu / Giấy tạm trú <span class="text-red-500 font-bold">*</span></li>
           <li>Giấy xác nhận thu nhập <span class="text-red-500 font-bold">*</span></li>
-          <li>Giấy tờ khác (nếu có)</li>
+          <li>Form Đăng Ký <span class="text-red-500 font-bold">*</span></li>
         </ul>
+        <p class="mt-3 font-semibold text-xs text-amber-900 border-t border-amber-200/50 pt-2">Lưu ý: Sau khi chọn file, vui lòng gắn đúng "Loại tài liệu" cho từng file ở danh sách bên dưới.</p>
       </div>
       <div @click="fileInput?.click()" @dragover.prevent @drop.prevent="onDrop"
         class="bg-white rounded-2xl border-2 border-dashed border-primary/30 p-8 text-center cursor-pointer hover:border-primary hover:bg-primary/5 transition-all">
@@ -130,10 +146,16 @@
             <div class="flex items-center gap-2 mt-1">
               <select v-model="f.doc_type" class="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none flex-1">
                 <option value="">-- Chọn loại tài liệu --</option>
-                <option value="cccd">CCCD / CMT</option>
-                <option value="hokh">Sổ hộ khẩu</option>
-                <option value="tnthu">Giấy xác nhận thu nhập</option>
-                <option value="other">Tài liệu khác</option>
+                <template v-if="selectedProgram?.requiredDocuments?.length">
+                  <option v-for="doc in selectedProgram.requiredDocuments" :key="doc" :value="doc">{{ doc }}</option>
+                </template>
+                <template v-else>
+                  <option value="CCCD">CCCD / CMT</option>
+                  <option value="Sổ hộ khẩu">Sổ hộ khẩu</option>
+                  <option value="Xác nhận thu nhập">Giấy xác nhận thu nhập</option>
+                  <option value="Form Đăng Ký">Form Đăng Ký</option>
+                </template>
+                <option value="Khác">Tài liệu khác</option>
               </select>
               <span class="text-[10px] text-slate-400 flex-shrink-0">{{ formatFileSize(f.size) }}</span>
             </div>
@@ -282,6 +304,8 @@ async function loadPrograms() {
       ten: p.tenChuongTrinh || p.ten_chuong_trinh || p.ten,
       han_nop: (p.ngayKetThuc || p.ngay_ket_thuc) ? new Date(p.ngayKetThuc || p.ngay_ket_thuc).toLocaleDateString('vi-VN') : '—',
       mo_ta: p.moTa || p.mo_ta || '',
+      requiredDocuments: p.requiredDocuments || [],
+      template_form_url: p.templateFormUrl || ''
     }))
   } catch (err) {
     console.error(err)
@@ -341,6 +365,16 @@ function validateStep() {
       formErrors.value = { tai_lieu: 'Vui lòng xoá file vượt quá 10MB' }
       return false
     }
+    // Validation các loại giấy tờ bắt buộc
+    const requiredDocs = selectedProgram.value?.requiredDocuments || []
+    if (requiredDocs.length > 0) {
+      const uploadedTypes = uploadedFiles.value.map(f => f.doc_type)
+      const missing = requiredDocs.filter(d => !uploadedTypes.includes(d))
+      if (missing.length > 0) {
+        formErrors.value = { tai_lieu: 'Vui lòng gắn đầy đủ Loại tài liệu cho các file tải lên! Hệ thống còn thiếu: ' + missing.join(', ') }
+        return false
+      }
+    }
     return true
   }
   if (currentStep.value === 3) {
@@ -384,6 +418,9 @@ async function next() {
         validFiles.map(f => {
           const formData = new FormData()
           formData.append('file', f.file)
+          if (f.doc_type) {
+             formData.append('loaiGiayTo', f.doc_type)
+          }
           return applicationsApi.uploadDocument(appId, formData)
         })
       )
